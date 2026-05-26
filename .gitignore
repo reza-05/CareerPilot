@@ -1,0 +1,17 @@
+# Python Virtual Environment
+careerpilot-backend/venv/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Node/NextJS modules
+careerpilot-frontend/node_modules/
+node_modules/
+.next/
+
+# Environment variables & DB
+.env
+*.env
+chroma_db/
+.DS_Store
