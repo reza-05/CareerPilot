@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Toaster, toast } from "sonner";
-import { UploadCloud, Loader2 } from "lucide-react";
 import AIChat from "@/components/AIChat";
 
 export default function Dashboard() {
@@ -25,7 +24,8 @@ export default function Dashboard() {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://localhost:8000/api/upload-cv", {
+      // Changed to relative route so it routes through our Next.js configuration proxy rule
+      const response = await fetch("/api/upload-cv", {
         method: "POST",
         body: formData,
       });
@@ -33,7 +33,7 @@ export default function Dashboard() {
       setIsProcessed(true);
       toast.success("CV processed successfully!");
     } catch (error) {
-      toast.error("Backend error.");
+      toast.error("Backend error during CV sync.");
     } finally {
       setLoading(false);
     }
@@ -43,28 +43,31 @@ export default function Dashboard() {
     <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-6 gap-8">
       <Toaster position="top-center" />
       
-      {/* This Card will now show up */}
       <Card className="w-full max-w-md bg-neutral-900 border-neutral-800 text-neutral-50 shadow-xl">
-  <CardHeader>
-    <CardTitle className="text-white">CareerPilot</CardTitle>
-    <CardDescription className="text-neutral-300">
-      Upload your CV to start
-    </CardDescription>
-  </CardHeader>
-  <CardContent>
-    {/* Style the input text specifically */}
-    <input 
-      type="file" 
-      onChange={handleFileChange} 
-      className="text-white file:text-white file:bg-neutral-800 file:border-0 file:rounded-md file:px-4 file:py-2" 
-    />
-    <Button onClick={uploadCV} className="mt-4 w-full bg-white text-black hover:bg-neutral-200">
-      {loading ? "Processing..." : "Process CV"}
-    </Button>
-  </CardContent>
-</Card>
+        <CardHeader>
+          <CardTitle className="text-white">CareerPilot</CardTitle>
+          <CardDescription className="text-neutral-300">
+            Upload your CV to start
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <input 
+            type="file" 
+            onChange={handleFileChange} 
+            className="text-white file:text-white file:bg-neutral-800 file:border-0 file:rounded-md file:px-4 file:py-2 w-full text-xs" 
+          />
+          <Button onClick={uploadCV} disabled={loading} className="mt-4 w-full bg-white text-black hover:bg-neutral-200 text-xs font-semibold">
+            {loading ? "Processing..." : "Process CV"}
+          </Button>
+        </CardContent>
+      </Card>
 
-      {isProcessed && <AIChat />}
+      {/* The nested interactive chat container interface */}
+      {isProcessed && (
+        <div className="w-full max-w-md">
+          <AIChat />
+        </div>
+      )}
     </div>
   );
 }

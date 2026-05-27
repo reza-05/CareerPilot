@@ -20,7 +20,8 @@ settings = Settings()
 client = genai.Client(api_key=settings.google_api_key)
 tavily = TavilyClient(api_key=settings.tavily_api_key)
 
-router = APIRouter(prefix="/api", tags=["Job Hunter"])
+# Cleaned up router decoration to avoid /api/api collision paths
+router = APIRouter(tags=["Job Hunter"])
 cv_context = {"text": ""}
 
 class JobRequest(BaseModel):
@@ -57,13 +58,16 @@ def get_db():
         db.close()
 
 # --- PRESERVED GEMINI ROUTES ---
-@router.post("/upload-cv")
+@router.post("/api/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):
-    content = await file.read()
-    cv_context["text"] = content.decode('utf-8', errors='ignore')
-    return {"status": "success", "filename": file.filename}
+    try:
+        content = await file.read()
+        cv_context["text"] = content.decode('utf-8', errors='ignore')
+        return {"status": "success", "filename": file.filename}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
-@router.post("/query-cv")
+@router.post("/api/query-cv")
 async def query_cv(request: JobRequest):
     try:
         response = client.models.generate_content(
@@ -72,16 +76,20 @@ async def query_cv(request: JobRequest):
         )
         return {"answer": response.text}
     except Exception as e:
-        return {"answer": "AI service error."}
+        error_msg = str(e)
+        # Catching the 429 rate limit safely so the UI renders an instructive nudge instead of a crash
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            return {"answer": "Slow down a bit, bro! Google's free tier API rate limit reached. Wait 10 seconds and try again."}
+        
+        return {"answer": "AI service error. Please make sure your CV was uploaded and processed correctly."}
 
-# --- FIX: DETERMINISTIC SEARCH ROLES ROUTE ---
-@router.post("/search-jobs")
+# --- SEARCH ROLES ROUTE ---
+@router.post("/api/search-jobs")
 async def search_jobs(request: JobRequest):
     try:
         results = tavily.search(query=request.query, search_depth="advanced")
         formatted = []
         
-        # Professional fallback structural context alignment profile
         cv_text = cv_context["text"] if cv_context["text"] else (
             "Full-Stack Software Engineer proficient in Python, FastAPI, Next.js, "
             "Robotics, Embedded Systems, and Competitive Programming from a prestigious "
@@ -92,11 +100,9 @@ async def search_jobs(request: JobRequest):
             job_description = item.get("content", "")
             job_title = item.get("title", "")
             
-            # Mathematical Deterministic Scoring Map (Unchanging across restarts)
             combined_payload = f"{job_title}{job_description}".encode("utf-8", errors="ignore")
             hash_integer = int(hashlib.md5(combined_payload).hexdigest(), 16)
             
-            # Formulates a rock-solid baseline integer between 75 and 95
             deterministic_score = 75 + (hash_integer % 21)
             deterministic_decimal = float(deterministic_score) / 100
             
@@ -129,7 +135,7 @@ async def search_jobs(request: JobRequest):
         return {"results": []}
 
 # --- TRACKER PIPELINE ENDPOINTS ---
-@router.post("/tracker")
+@router.post("/api/tracker")
 def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db)):
     db_entry = JobTracker(role=job.role, company=job.company, status="Applied")
     db.add(db_entry)
@@ -137,11 +143,11 @@ def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db)):
     db.refresh(db_entry)
     return db_entry
 
-@router.get("/tracker")
+@router.get("/api/tracker")
 def list_tracked_jobs(db: Session = Depends(get_db)):
     return db.query(JobTracker).all()
 
-@router.put("/tracker/{id}")
+@router.put("/api/tracker/{id}")
 def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_db)):
     db_job = db.query(JobTracker).filter(JobTracker.id == id).first()
     if not db_job:
@@ -150,7 +156,7 @@ def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_
     db.commit()
     return {"status": "success"}
 
-@router.get("/tracker/ai-nudge")
+@router.get("/api/tracker/ai-nudge")
 def fetch_ai_nudge(db: Session = Depends(get_db)):
     try:
         count = db.query(JobTracker).filter(JobTracker.status == "Applied").count()

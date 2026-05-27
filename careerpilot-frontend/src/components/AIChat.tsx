@@ -11,26 +11,35 @@ export default function AIChat() {
   const [loading, setLoading] = useState(false);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
 
-    const userMessage = { role: "user", content: input };
+    // 1. Log user message to UI state
+    const userMessage = { role: "user", content: trimmedInput };
     setMessages((prev) => [...prev, userMessage]);
+    
+    // 2. Clear input immediately for optimal UX
     setInput("");
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/query-cv", {
+      // 3. Routed through local Next.js rewrite configuration proxy rules safely
+      const response = await fetch("/api/query-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: input }), 
+        body: JSON.stringify({ query: trimmedInput }), // 💻 Fixed back to 'query' to stop the 422 error
       });
 
       if (!response.ok) throw new Error("Connection failed");
 
       const data = await response.json();
-      setMessages((prev) => [...prev, { role: "ai", content: data.answer }]);
+      
+      // 4. Extract content cleanly from whichever key your backend uses
+      const replyContent = data.response || data.answer || data.message || (typeof data === "string" ? data : JSON.stringify(data));
+      
+      setMessages((prev) => [...prev, { role: "ai", content: replyContent }]);
     } catch (error) {
-      setMessages((prev) => [...prev, { role: "ai", content: "Error: Could not connect to AI." }]);
+      setMessages((prev) => [...prev, { role: "ai", content: "AI service error. Could not connect to backend engine." }]);
     } finally {
       setLoading(false);
     }
@@ -50,12 +59,12 @@ export default function AIChat() {
               <span className={`text-xs mb-1 ${m.role === "user" ? "text-blue-400" : "text-green-400"}`}>
                 {m.role === "user" ? "You" : "AI"}
               </span>
-              <p className="bg-neutral-800 text-white px-3 py-2 rounded-lg text-sm max-w-[85%]">
+              <p className="bg-neutral-800 text-white px-3 py-2 rounded-lg text-sm max-w-[85%] whitespace-pre-wrap">
                 {m.content}
               </p>
             </div>
           ))}
-          {loading && <p className="text-neutral-500 text-sm">AI is thinking...</p>}
+          {loading && <p className="text-neutral-500 text-sm animate-pulse">AI is thinking...</p>}
         </div>
 
         {/* Input area with high-contrast classes */}
