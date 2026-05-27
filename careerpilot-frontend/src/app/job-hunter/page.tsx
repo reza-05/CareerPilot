@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check } from "lucide-react";
+import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit } from "lucide-react";
 
 export default function JobHunter() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -81,19 +81,31 @@ export default function JobHunter() {
         <div className="space-y-4">
           {jobs.map((job, i) => {
             const currentStatus = trackingStates[job.url];
+            const displayCompany = job.company || "Verified Employer Portfolio";
             
+            // Build absolute redirection URI query containing target task context for our AI chat interface page
+            const coverLetterPrompt = encodeURIComponent(`Draft a personalized cover letter for this ${job.title} role at ${displayCompany} grounded in my CV.`);
+            const chatRedirectUrl = `/?prompt=${coverLetterPrompt}`;
+
             return (
               <div key={i} className="group relative bg-neutral-900/40 border border-neutral-800 p-8 rounded-2xl hover:border-neutral-700 transition-all duration-300">
-                <div className="flex justify-between items-center gap-6">
-                  <div>
+                <div className="flex justify-between items-start gap-6">
+                  <div className="space-y-2">
                     <h3 className="text-xl font-semibold text-neutral-100 group-hover:text-white transition-colors">
                       {job.title}
                     </h3>
-                    <p className="text-sm text-neutral-400 mt-1">
-                      {job.company || "Verified Employer Portfolio"}
+                    <p className="text-sm text-neutral-400">
+                      {displayCompany}
                     </p>
+                    
+                    {/* 🎯 GAP 1 FIX: Beautiful, muted small font match description text block */}
+                    {job.matchReason && (
+                      <p className="text-xs text-neutral-500 font-medium leading-relaxed max-w-xl pt-1">
+                        <span className="text-indigo-400/90 font-semibold">AI Insight:</span> {job.matchReason}
+                      </p>
+                    )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <div className="text-4xl font-black text-emerald-400 tracking-tighter">
                       {job.matchScore ? (job.matchScore * 100).toFixed(0) : "75"}%
                     </div>
@@ -113,7 +125,7 @@ export default function JobHunter() {
 
                   <button
                     disabled={currentStatus === "saving" || currentStatus === "tracked"}
-                    onClick={() => trackJobOnKanban(job.title, job.company, job.url)}
+                    onClick={() => trackJobOnKanban(job.title, displayCompany, job.url)}
                     className={`inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-xl border transition-all duration-300 ${
                       currentStatus === "tracked"
                         ? "bg-emerald-950/40 border-emerald-500 text-emerald-400 cursor-not-allowed"
@@ -141,6 +153,15 @@ export default function JobHunter() {
                       </>
                     )}
                   </button>
+
+                  {/* 🎯 GAP 2 FIX: Premium 'Draft Cover Letter' actionable redirection link item */}
+                  <a
+                    href={chatRedirectUrl}
+                    className="inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-300 hover:text-white hover:border-indigo-500/50 hover:bg-neutral-900 transition-all duration-300 shadow-[0_0_15px_rgba(99,102,241,0.02)] hover:shadow-[0_0_20px_rgba(99,102,241,0.1)]"
+                  >
+                    <FileEdit size={16} className="text-indigo-400" />
+                    Draft Cover Letter 📝
+                  </a>
                 </div>
               </div>
             );

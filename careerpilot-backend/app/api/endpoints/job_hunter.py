@@ -116,7 +116,8 @@ async def search_jobs(request: JobRequest):
                 f"Compare this candidate CV layout and Job description details.\n\n"
                 f"Candidate CV content context:\n{cv_text[:1200]}\n\n"
                 f"Target Job post content description:\n{job_description[:1200]}\n\n"
-                f"Analyze the technical alignment profile. Output a valid structural JSON mapping matching the schema."
+                f"Analyze the technical alignment profile. Output a valid structural JSON mapping matching the schema. "
+                f"The generated 'matchReason' property must be a single, descriptive sentence highlighting the exact technological stack intersection."
             )
             
             try:
