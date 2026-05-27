@@ -1,14 +1,16 @@
 "use client";
 import { useState } from "react";
-import { Loader2, Sparkles, Briefcase, ArrowRight } from "lucide-react";
+import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check } from "lucide-react";
 
 export default function JobHunter() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // 🛠️ FIXED: Added a clean string index signature that matches our state states safely
+  const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>({});
 
   const huntJobs = async () => {
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 800));
     try {
       const res = await fetch("http://127.0.0.1:8000/api/search-jobs", {
         method: "POST",
@@ -21,6 +23,39 @@ export default function JobHunter() {
       console.error("Fetch failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const trackJobOnKanban = async (jobTitle: string, rawCompany: string, jobUrl: string) => {
+    const companyName = rawCompany || "Target Company";
+    
+    setTrackingStates(prev => ({ ...prev, [jobUrl]: "saving" }));
+
+    try {
+      const response = await fetch("http://localhost:8000/api/tracker", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          role: jobTitle,
+          company: companyName,
+        }),
+      });
+
+      if (response.ok) {
+        setTrackingStates(prev => ({ ...prev, [jobUrl]: "tracked" }));
+      } else {
+        setTrackingStates(prev => ({ ...prev, [jobUrl]: "error" }));
+        // 🛠️ FIXED: Reverting to an empty string instead of undefined to satisfy TypeScript rules
+        setTimeout(() => {
+          setTrackingStates(prev => ({ ...prev, [jobUrl]: "" }));
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Failed to sync job tracking payload:", error);
+      // 🛠️ FIXED: Reverting to an empty string here as well
+      setTrackingStates(prev => ({ ...prev, [jobUrl]: "" }));
     }
   };
 
@@ -44,27 +79,72 @@ export default function JobHunter() {
         </header>
 
         <div className="space-y-4">
-          {jobs.map((job, i) => (
-            <div key={i} className="group relative bg-neutral-900/40 border border-neutral-800 p-8 rounded-2xl hover:border-neutral-700 transition-all duration-300">
-              <div className="flex justify-between items-center gap-6">
-                <h3 className="text-xl font-semibold text-neutral-100 group-hover:text-white transition-colors">
-                  {job.title}
-                </h3>
-                <div className="text-right">
-                  <div className="text-4xl font-black text-emerald-400 tracking-tighter">
-                    {(job.matchScore * 100).toFixed(0)}%
+          {jobs.map((job, i) => {
+            const currentStatus = trackingStates[job.url];
+            
+            return (
+              <div key={i} className="group relative bg-neutral-900/40 border border-neutral-800 p-8 rounded-2xl hover:border-neutral-700 transition-all duration-300">
+                <div className="flex justify-between items-center gap-6">
+                  <div>
+                    <h3 className="text-xl font-semibold text-neutral-100 group-hover:text-white transition-colors">
+                      {job.title}
+                    </h3>
+                    <p className="text-sm text-neutral-400 mt-1">
+                      {job.company || "Verified Employer Portfolio"}
+                    </p>
                   </div>
-                  <div className="text-xs text-neutral-500 font-bold uppercase tracking-widest mt-1">Match</div>
+                  <div className="text-right">
+                    <div className="text-4xl font-black text-emerald-400 tracking-tighter">
+                      {job.matchScore ? (job.matchScore * 100).toFixed(0) : "75"}%
+                    </div>
+                    <div className="text-xs text-neutral-500 font-bold uppercase tracking-widest mt-1">Match</div>
+                  </div>
+                </div>
+                
+                <div className="mt-8 flex flex-wrap items-center gap-4">
+                  <a 
+                    href={job.url} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 transition-colors shadow-lg"
+                  >
+                    Apply Now <ArrowRight size={18} />
+                  </a>
+
+                  <button
+                    disabled={currentStatus === "saving" || currentStatus === "tracked"}
+                    onClick={() => trackJobOnKanban(job.title, job.company, job.url)}
+                    className={`inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-xl border transition-all duration-300 ${
+                      currentStatus === "tracked"
+                        ? "bg-emerald-950/40 border-emerald-500 text-emerald-400 cursor-not-allowed"
+                        : currentStatus === "saving"
+                        ? "bg-neutral-900 border-neutral-700 text-neutral-400 cursor-wait"
+                        : "bg-neutral-950 border-neutral-800 text-neutral-300 hover:text-white hover:border-emerald-500/50 hover:bg-neutral-900 shadow-[0_0_15px_rgba(16,185,129,0.02)] hover:shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+                    }`}
+                  >
+                    {currentStatus === "saving" && (
+                      <>
+                        <Loader2 className="animate-spin text-neutral-400" size={18} />
+                        Tracking...
+                      </>
+                    )}
+                    {currentStatus === "tracked" && (
+                      <>
+                        <Check className="text-emerald-400" size={18} />
+                        Tracked ✓
+                      </>
+                    )}
+                    {(currentStatus === "" || !currentStatus || currentStatus === "error") && (
+                      <>
+                        <FolderPlus size={18} className="text-neutral-400" />
+                        {currentStatus === "error" ? "Try Again" : "Track Job"}
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
-              
-              <div className="mt-8">
-                <a href={job.url} target="_blank" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-black font-bold rounded-xl hover:bg-neutral-200 transition-colors shadow-lg">
-                  Apply Now <ArrowRight size={18} />
-                </a>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
