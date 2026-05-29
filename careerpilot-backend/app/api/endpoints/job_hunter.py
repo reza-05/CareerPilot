@@ -93,6 +93,7 @@ async def query_cv(request: JobRequest):
 @router.post("/api/search-jobs")
 async def search_jobs(request: JobRequest):
     try:
+        # Dynamically processes natural language strings straight from the frontend input state
         results = tavily.search(query=request.query, search_depth="advanced")
         formatted = []
         

@@ -5,22 +5,27 @@ import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit }
 export default function JobHunter() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
-  // 🛠️ FIXED: Added a clean string index signature that matches our state states safely
+  // Clean string index signature matching tracking states safely
   const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>({});
 
-  const huntJobs = async () => {
+  const huntJobs = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) return;
+
     setLoading(true);
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/search-jobs", {
+      // Pointed explicitly to localhost to align with local development CORS architectures
+      const res = await fetch("http://localhost:8000/api/search-jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: "Software Engineer" }),
+        body: JSON.stringify({ query: searchQuery }),
       });
       const data = await res.json();
       if (data.results) setJobs(data.results);
     } catch (e) {
-      console.error("Fetch failed");
+      console.error("Fetch failed", e);
     } finally {
       setLoading(false);
     }
@@ -47,14 +52,12 @@ export default function JobHunter() {
         setTrackingStates(prev => ({ ...prev, [jobUrl]: "tracked" }));
       } else {
         setTrackingStates(prev => ({ ...prev, [jobUrl]: "error" }));
-        // 🛠️ FIXED: Reverting to an empty string instead of undefined to satisfy TypeScript rules
         setTimeout(() => {
           setTrackingStates(prev => ({ ...prev, [jobUrl]: "" }));
         }, 2000);
       }
     } catch (error) {
       console.error("Failed to sync job tracking payload:", error);
-      // 🛠️ FIXED: Reverting to an empty string here as well
       setTrackingStates(prev => ({ ...prev, [jobUrl]: "" }));
     }
   };
@@ -70,12 +73,25 @@ export default function JobHunter() {
           <h1 className="text-5xl font-bold tracking-tight mb-4 bg-gradient-to-b from-white to-neutral-500 bg-clip-text text-transparent">
             Your Next Career Move
           </h1>
-          <button 
-            onClick={huntJobs} 
-            className="mt-8 px-8 py-3 bg-white text-black font-bold rounded-full hover:bg-neutral-200 transition-all shadow-[0_0_20px_rgba(255,255,255,0.15)] flex items-center gap-2 mx-auto"
-          >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : <><Briefcase size={20} /> Find Opportunities</>}
-          </button>
+          
+          {/* Dynamic Natural Language Search Input Form Block */}
+          <form onSubmit={huntJobs} className="mt-10 max-w-2xl mx-auto flex flex-col sm:flex-row items-center gap-3 bg-neutral-900/60 p-2 rounded-2xl border border-neutral-800 focus-within:border-neutral-700 transition-all duration-300">
+            <input 
+              type="text"
+              required
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="e.g., Find me ML internships in Dhaka open this month"
+              className="w-full bg-transparent px-4 py-3 text-sm text-neutral-100 placeholder-neutral-600 outline-none"
+            />
+            <button 
+              type="submit"
+              disabled={loading || !searchQuery.trim()}
+              className="w-full sm:w-auto px-6 py-3 bg-white text-black font-bold text-sm rounded-xl hover:bg-neutral-200 disabled:bg-neutral-800 disabled:text-neutral-600 transition-all shadow-[0_0_20px_rgba(255,255,255,0.05)] flex items-center justify-center gap-2 shrink-0"
+            >
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <><Briefcase size={16} /> Search</>}
+            </button>
+          </form>
         </header>
 
         <div className="space-y-4">
@@ -98,7 +114,7 @@ export default function JobHunter() {
                       {displayCompany}
                     </p>
                     
-                    {/* 🎯 GAP 1 FIX: Beautiful, muted small font match description text block */}
+                    {/* Beautiful, muted small font match description text block */}
                     {job.matchReason && (
                       <p className="text-xs text-neutral-500 font-medium leading-relaxed max-w-xl pt-1">
                         <span className="text-indigo-400/90 font-semibold">AI Insight:</span> {job.matchReason}
@@ -154,7 +170,7 @@ export default function JobHunter() {
                     )}
                   </button>
 
-                  {/* 🎯 GAP 2 FIX: Premium 'Draft Cover Letter' actionable redirection link item */}
+                  {/* Premium 'Draft Cover Letter' actionable redirection link item */}
                   <a
                     href={chatRedirectUrl}
                     className="inline-flex items-center gap-2 px-6 py-3 font-semibold rounded-xl border border-neutral-800 bg-neutral-950 text-neutral-300 hover:text-white hover:border-indigo-500/50 hover:bg-neutral-900 transition-all duration-300 shadow-[0_0_15px_rgba(99,102,241,0.02)] hover:shadow-[0_0_20px_rgba(99,102,241,0.1)]"
