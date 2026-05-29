@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit } from "lucide-react";
+import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
 
 export default function JobHunter() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -106,21 +106,45 @@ export default function JobHunter() {
             return (
               <div key={i} className="group relative bg-neutral-900/40 border border-neutral-800 p-8 rounded-2xl hover:border-neutral-700 transition-all duration-300">
                 <div className="flex justify-between items-start gap-6">
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-semibold text-neutral-100 group-hover:text-white transition-colors">
-                      {job.title}
-                    </h3>
-                    <p className="text-sm text-neutral-400">
-                      {displayCompany}
-                    </p>
-                    
-                    {/* Beautiful, muted small font match description text block */}
-                    {job.matchReason && (
-                      <p className="text-xs text-neutral-500 font-medium leading-relaxed max-w-xl pt-1">
-                        <span className="text-indigo-400/90 font-semibold">AI Insight:</span> {job.matchReason}
+                  <div className="space-y-3 w-full">
+                    <div>
+                      <h3 className="text-xl font-semibold text-neutral-100 group-hover:text-white transition-colors">
+                        {job.title}
+                      </h3>
+                      <p className="text-sm text-neutral-400 mt-0.5">
+                        {displayCompany}
                       </p>
+                    </div>
+
+                    {/* Premium Metadata Badges Stack Section */}
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-neutral-950 border border-neutral-800 text-neutral-400">
+                        <MapPin size={12} className="text-neutral-500" />
+                        {job.location || "Remote"}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-neutral-950 border border-neutral-800 text-neutral-400">
+                        <DollarSign size={12} className="text-neutral-500" />
+                        {job.salaryRange || "Not Specified"}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-neutral-950 border border-neutral-800 text-neutral-400">
+                        <Calendar size={12} className="text-neutral-500" />
+                        Deadline: {job.applicationDeadline || "Open"}
+                      </span>
+                    </div>
+                    
+                    {/* Premium AI Insight Box Block */}
+                    {job.matchReason && (
+                      <div className="mt-3 bg-indigo-950/20 border border-indigo-500/10 p-4 rounded-xl max-w-2xl">
+                        <p className="text-xs font-semibold text-indigo-400 tracking-wide uppercase mb-1">
+                          Why This Matches Your Profile (Reasoning):
+                        </p>
+                        <p className="text-sm text-neutral-300 leading-relaxed font-medium">
+                          {job.matchReason}
+                        </p>
+                      </div>
                     )}
                   </div>
+                  
                   <div className="text-right shrink-0">
                     <div className="text-4xl font-black text-emerald-400 tracking-tighter">
                       {job.matchScore ? (job.matchScore * 100).toFixed(0) : "75"}%

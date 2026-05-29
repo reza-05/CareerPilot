@@ -32,7 +32,10 @@ class JobRequest(BaseModel):
 # --- Pydantic Schema for Strict Gemini JSON Output Compliance ---
 class JobAnalysisSchema(BaseModel):
     matchScore: int = Field(description="An integer match percentage score strictly between 70 and 99")
-    matchReason: str = Field(description="A concise 1-sentence analytical reason why this position aligns with the user's CV strengths")
+    matchReason: str = Field(description="A concise 1-sentence analytical explanation of WHY this specific job aligns (or doesn't align) with the candidate's CV strengths")
+    salaryRange: str = Field(description="The extracted or estimated salary bracket from the text, formatted like '$80k - $110k'. Use 'Not Specified' if missing.")
+    applicationDeadline: str = Field(description="The final date to submit an application or structural milestones like 'Open until filled' if not explicitly noted.")
+    location: str = Field(description="The structural operational location setup. Must extract formats like 'Remote', 'Dhaka, Bangladesh', or 'Hybrid'.")
 
 # --- TRACKER DATABASE SETUP ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///./careerpilot.db"
@@ -117,8 +120,12 @@ async def search_jobs(request: JobRequest):
                 f"Compare this candidate CV layout and Job description details.\n\n"
                 f"Candidate CV content context:\n{cv_text[:1200]}\n\n"
                 f"Target Job post content description:\n{job_description[:1200]}\n\n"
-                f"Analyze the technical alignment profile. Output a valid structural JSON mapping matching the schema. "
-                f"The generated 'matchReason' property must be a single, descriptive sentence highlighting the exact technological stack intersection."
+                f"Analyze the technical alignment profile. Output a valid structural JSON mapping matching the schema.\n"
+                f"You must strictly extract or estimate the following data points from the job description context:\n"
+                f"1. 'salaryRange': Extract explicitly or estimate closely (e.g., '$80k - $110k'). Fallback to 'Not Specified' if completely missing.\n"
+                f"2. 'applicationDeadline': Locate specific date parameters or fall back to 'Open until filled'.\n"
+                f"3. 'location': Identify the regional parameters (e.g., 'Remote', 'Dhaka, Bangladesh', or 'Hybrid').\n"
+                f"4. 'matchReason': Generate exactly a 1-sentence analytical explanation of WHY this specific position aligns or fails to align with the candidate's exact CV strengths."
             )
             
             try:
@@ -137,6 +144,9 @@ async def search_jobs(request: JobRequest):
                 parsed_json = json.loads(ai_response.text.strip())
                 item["matchScore"] = float(parsed_json.get("matchScore", deterministic_score)) / 100
                 item["matchReason"] = parsed_json.get("matchReason", "Strong alignment across structural development stacks.")
+                item["salaryRange"] = parsed_json.get("salaryRange", "Not Specified")
+                item["applicationDeadline"] = parsed_json.get("applicationDeadline", "Open until filled")
+                item["location"] = parsed_json.get("location", "Not Specified")
                 
             except Exception as inner_error:
                 error_str = str(inner_error)
@@ -147,6 +157,9 @@ async def search_jobs(request: JobRequest):
                     item["matchReason"] = "Solid foundational technical stack alignment detected across project histories."
                 
                 item["matchScore"] = deterministic_decimal
+                item["salaryRange"] = "Not Specified"
+                item["applicationDeadline"] = "Open until filled"
+                item["location"] = "Not Specified"
                 
             formatted.append(item)
         return {"results": formatted}
