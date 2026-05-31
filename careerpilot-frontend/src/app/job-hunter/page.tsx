@@ -1,15 +1,15 @@
 "use client";
 import { useState } from "react";
 import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
-import { Kanit } from 'next/font/google';
+import { DM_Sans } from 'next/font/google';
 
-const kanit = Kanit({
+const dmSans = DM_Sans({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
+  weight: ['300', '400', '500', '600', '700'],
 });
 
 export default function JobHunter() {
-  // Clean Empty State On Load - Initial state of the job results array is empty
+  // Maintaining a clean empty initial state on page mount
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,24 +74,24 @@ export default function JobHunter() {
   };
 
   return (
-    <div className={`min-h-screen bg-[#f8f9fa] text-slate-800 antialiased selection:bg-[#0D9488]/10 selection:text-[#0F766E] ${kanit.className}`}>
+    <div className={`min-h-screen bg-white text-slate-800 antialiased selection:bg-[#1E3A8A]/10 selection:text-[#1E3A8A] ${dmSans.className}`}>
       
-      {/* Soft Premium Top Gradient Mesh Layer */}
-      <div className="absolute top-0 left-0 right-0 h-[420px] bg-gradient-to-b from-teal-50/20 via-transparent to-transparent pointer-events-none z-0" />
+      {/* Soft Premium Top Mesh Layer Tinted to Coordinate Ecosystem */}
+      <div className="absolute top-0 left-0 right-0 h-[420px] bg-gradient-to-b from-blue-50/30 via-transparent to-transparent pointer-events-none z-0" />
 
       <div className="max-w-4xl mx-auto px-4 py-12 sm:py-20 relative z-10">
         <header className="mb-14 text-center">
           
-          {/* 5. THE GRADIENT HEADING RESPONSIVE SIZE */}
-          <h1 className="text-transparent bg-clip-text bg-gradient-to-r from-slate-950 via-teal-900 to-teal-700 font-black text-2xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight text-center mb-4 sm:mb-5 leading-tight">
+          {/* Solid Deep Blue Hero Heading (Absolutely No Gradients) */}
+          <h1 className="text-[#1E3A8A] font-semibold text-2xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight text-center mb-4 leading-tight">
             Navigate Your Next Career Transition
           </h1>
           <p className="text-slate-500 font-normal text-xs sm:text-sm md:text-base text-center max-w-2xl mx-auto leading-relaxed px-4">
             Stop endless scrolling. Enter your ideal role, tech stack, or location, and let our intelligent engine surface tailored high-fit opportunities for you.
           </p>
           
-          {/* 1. DYNAMIC SEARCH CONSOLE (Mobile & Desktop Balance) */}
-          <form onSubmit={huntJobs} className="mt-10 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border border-slate-200/80 shadow-xl shadow-slate-200/50 rounded-2xl p-2.5 sm:p-4 transition-all focus-within:border-teal-600 focus-within:ring-4 focus-within:ring-teal-600/5 duration-200">
+          {/* Responsive Command Console Container */}
+          <form onSubmit={huntJobs} className="mt-10 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 sm:p-4 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200">
             <div className="flex items-center gap-3 w-full px-3">
               <Briefcase size={22} className="text-slate-400 shrink-0 sm:w-6 sm:h-6" />
               <input 
@@ -107,13 +107,13 @@ export default function JobHunter() {
             <button 
               type="submit"
               disabled={loading || !searchQuery.trim()}
-              className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-sm sm:text-lg font-bold px-5 sm:px-8 py-3 sm:py-4 rounded-xl shadow-md transition-all text-center shrink-0 w-full sm:w-auto flex items-center justify-center gap-2 active:scale-[0.99] disabled:bg-slate-100 disabled:text-slate-400"
+              className="bg-[#1E3A8A] hover:bg-[#1D4ED8] text-white text-sm sm:text-lg font-bold px-5 sm:px-8 py-3 sm:py-4 rounded-xl shadow-md transition-all text-center w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 active:scale-[0.99] disabled:bg-slate-100 disabled:text-slate-400"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : "Search Opportunities"}
             </button>
           </form>
 
-          {/* Interactive Minimalist Teal Suggestion Pills */}
+          {/* Interactive Minimalist Blue Suggestion Pills */}
           <div className="flex flex-wrap justify-center items-center gap-2 mt-6 sm:mt-8 max-w-2xl mx-auto px-2">
             {[
               { label: "Govt. job", query: "Government circular jobs in Bangladesh" },
@@ -129,7 +129,7 @@ export default function JobHunter() {
                   setSearchQuery(pill.query);
                   executeSearch(pill.query);
                 }}
-                className="bg-teal-50 border border-teal-100/70 text-teal-800 font-medium text-xs rounded-lg px-4 py-1.5 hover:bg-teal-100 transition-all shadow-sm cursor-pointer active:scale-95 select-none"
+                className="bg-[#EFF6FF] border border-[#BFDBFE]/50 text-[#1E3A8A] font-semibold text-xs rounded-lg px-4 py-1.5 hover:bg-[#DBEAFE] transition-all shadow-sm cursor-pointer active:scale-95 select-none"
               >
                 {pill.label}
               </button>
@@ -137,7 +137,7 @@ export default function JobHunter() {
           </div>
         </header>
 
-        {/* 2. MASSIVE YET DYNAMIC JOB CARDS (Post-Search Display) */}
+        {/* Shades Of Blue Component Ecosystem (Job Cards) */}
         <div className="space-y-6 sm:space-y-8">
           {jobs.map((job, i) => {
             const currentStatus = trackingStates[job.url];
@@ -146,42 +146,42 @@ export default function JobHunter() {
             const chatRedirectUrl = `/?prompt=${coverLetterPrompt}`;
 
             return (
-              <div key={i} className="group relative bg-white border border-slate-100 shadow-lg shadow-slate-200/40 rounded-2xl p-5 sm:p-10 mb-6 sm:mb-8 max-w-4xl mx-auto hover:border-teal-500/30 transition-all duration-200">
+              <div key={i} className="group relative bg-white border border-slate-100 shadow-xl shadow-slate-200/40 rounded-2xl p-5 sm:p-10 mb-6 sm:mb-8 max-w-4xl mx-auto hover:border-[#1E3A8A]/40 transition-all duration-200">
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 md:gap-6">
                   <div className="space-y-4 sm:space-y-5 w-full">
                     <div>
-                      <h3 className="text-slate-900 font-black text-xl sm:text-3xl tracking-tight mb-2 sm:mb-3 leading-snug group-hover:text-[#0D9488] transition-colors duration-150">
+                      <h3 className="text-slate-900 font-bold text-xl sm:text-2xl tracking-tight mb-2 leading-snug group-hover:text-[#1E3A8A] transition-colors duration-150">
                         {job.title}
                       </h3>
-                      <p className="text-sm sm:text-base font-bold text-slate-500">
+                      <p className="text-sm sm:text-base font-semibold text-slate-500">
                         {displayCompany}
                       </p>
                     </div>
 
-                    {/* Meta Info Chips Wrapper & Individual Chips */}
+                    {/* Meta Info Indicators - Soft Blue Tint Chips */}
                     <div className="flex flex-wrap gap-2 mb-4">
-                      <span className="bg-[#F0FDF4] text-[#065F46] border border-[#BBF7D0] rounded-xl text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5">
-                        <MapPin size={14} className="text-[#0D9488]" />
+                      <span className="bg-[#EFF6FF] text-[#1E3A8A] border border-[#BFDBFE]/60 rounded-xl text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5">
+                        <MapPin size={14} className="text-[#1E3A8A]/70" />
                         {job.location || "Remote"}
                       </span>
-                      <span className="bg-[#F0FDF4] text-[#065F46] border border-[#BBF7D0] rounded-xl text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5">
-                        <DollarSign size={14} className="text-[#0D9488]" />
+                      <span className="bg-[#EFF6FF] text-[#1E3A8A] border border-[#BFDBFE]/60 rounded-xl text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5">
+                        <DollarSign size={14} className="text-[#1E3A8A]/70" />
                         {job.salaryRange || "Not Specified"}
                       </span>
-                      <span className="bg-[#F0FDF4] text-[#065F46] border border-[#BBF7D0] rounded-xl text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5">
-                        <Calendar size={14} className="text-[#0D9488]" />
+                      <span className="bg-[#EFF6FF] text-[#1E3A8A] border border-[#BFDBFE]/60 rounded-xl text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1.5">
+                        <Calendar size={14} className="text-[#1E3A8A]/70" />
                         Deadline: {job.applicationDeadline || "Open"}
                       </span>
                     </div>
                     
-                    {/* 3. RESPONSIVE AI DOSSIER BOX (Reasoning Text) */}
+                    {/* The AI Reasoning Insight Dossier Container */}
                     {job.matchReason && (
-                      <div className="bg-[#F0FDF4] border-l-4 border-l-[#0D9488] border-y-slate-100 border-r-slate-100 rounded-r-xl rounded-l-sm p-4 sm:p-6 mt-4 sm:mt-6 text-slate-700 text-sm sm:text-base font-semibold leading-relaxed shadow-sm">
-                        <p className="text-xs font-bold text-[#0D9488] tracking-wider uppercase mb-2 flex items-center gap-1.5">
-                          <Sparkles size={14} className="text-[#0D9488]" />
+                      <div className="bg-[#F8FAFC] border-l-4 border-l-[#1E3A8A] border-y-slate-200/50 border-r-slate-200/50 rounded-r-xl rounded-l-sm p-4 sm:p-6 mt-4 sm:mt-6 text-slate-700 text-sm sm:text-base font-medium leading-relaxed">
+                        <p className="text-xs font-bold text-[#1E3A8A] tracking-wider uppercase mb-2 flex items-center gap-1.5">
+                          <Sparkles size={14} className="text-[#1E3A8A]" />
                           Why This Matches Your Profile
                         </p>
-                        <p className="text-sm sm:text-base text-slate-700 leading-relaxed font-semibold">
+                        <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-medium">
                           {job.matchReason}
                         </p>
                       </div>
@@ -190,20 +190,20 @@ export default function JobHunter() {
                   
                   {/* Performance Alignment Metric Block */}
                   <div className="self-start md:self-start shrink-0 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 sm:px-5 sm:py-4 min-w-[5.5rem] sm:min-w-[6rem] flex flex-col items-center justify-center shadow-inner mt-2 md:mt-0">
-                    <div className="text-2xl sm:text-3xl font-black text-[#0D9488] tracking-tight">
+                    <div className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] tracking-tight">
                       {job.matchScore ? (job.matchScore * 100).toFixed(0) : "75"}%
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">Match Index</div>
                   </div>
                 </div>
                 
-                {/* 4. CARD LOWER BUTTONS & ACTIONS CONTAINER */}
+                {/* Primary Responsive Action Calls Stack Grid */}
                 <div className="flex flex-col sm:flex-row gap-3 mt-5 sm:mt-6 pt-4 border-t border-slate-100">
                   <a 
                     href={job.url} 
                     target="_blank" 
                     rel="noreferrer"
-                    className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold rounded-xl text-center bg-[#0D9488] hover:bg-[#0F766E] text-white transition-colors shadow-sm flex items-center justify-center gap-2"
+                    className="bg-[#1E3A8A] hover:bg-[#1D4ED8] text-white text-sm sm:text-base font-bold w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-center transition-colors flex items-center justify-center gap-2"
                   >
                     Apply Now <ArrowRight size={16} />
                   </a>
@@ -211,9 +211,9 @@ export default function JobHunter() {
                   <button
                     disabled={currentStatus === "saving" || currentStatus === "tracked"}
                     onClick={() => trackJobOnKanban(job.title, displayCompany, job.url)}
-                    className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold rounded-xl text-center border transition-colors duration-200 flex items-center justify-center gap-2 ${
+                    className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold rounded-xl text-center border transition-all flex items-center justify-center gap-2 ${
                       currentStatus === "tracked"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200/60 cursor-not-allowed"
+                        ? "bg-blue-50 text-blue-700 border-blue-200/60 cursor-not-allowed"
                         : currentStatus === "saving"
                         ? "bg-slate-50 border-slate-200 text-slate-400 cursor-wait"
                         : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
@@ -227,7 +227,7 @@ export default function JobHunter() {
                     )}
                     {currentStatus === "tracked" && (
                       <>
-                        <Check className="text-emerald-600" size={16} />
+                        <Check className="text-blue-600" size={16} />
                         Tracked
                       </>
                     )}
@@ -241,9 +241,9 @@ export default function JobHunter() {
 
                   <a
                     href={chatRedirectUrl}
-                    className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold rounded-xl text-center border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors duration-200 shadow-sm flex items-center justify-center gap-2"
+                    className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm sm:text-base font-bold w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-center transition-all flex items-center justify-center gap-2"
                   >
-                    <FileEdit size={16} className="text-[#0D9488]" />
+                    <FileEdit size={16} className="text-[#1E3A8A]" />
                     Draft Cover Letter
                   </a>
                 </div>
