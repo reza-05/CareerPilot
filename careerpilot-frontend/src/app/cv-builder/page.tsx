@@ -1,57 +1,47 @@
 "use client";
 
-import React, { useState, KeyboardEvent } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, X, Plus } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function CVBuilderPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    dob: "",
-    school: "",
-    sscGrade: "",
-    college: "",
-    hscGrade: "",
-    isUniversityApplicable: false,
-    university: "",
-    major: "",
-    yearOfPassing: "",
-    uniGrade: "",
-    hasExperience: false,
-    experienceDetails: "",
-    skills: [] as string[],
-    languages: [] as string[],
+    firstName: "", lastName: "", headline: "", email: "", phone: "", address: "", dob: "", linkedIn: "", github: "",
+    summary: "",
+    sscSchool: "", sscGroup: "", sscYear: "", sscGpa: "",
+    hscCollege: "", hscGroup: "", hscYear: "", hscGpa: "",
+    isUniEnabled: false, uniDegree: "", uniName: "", uniMajor: "", uniYear: "", uniGpa: "",
+    isWorkEnabled: false, workTitle: "", workCompany: "", workYear: "", workDesc: "",
+    skills: "", languages: "", projects: "", certs: "",
   });
 
-  const [skillInput, setSkillInput] = useState("");
-  const [langInput, setLangInput] = useState("");
-
-  const handleTagAdd = (type: "skills" | "languages", value: string, setter: Function) => {
-    if (!value.trim()) return;
-    setFormData((prev) => ({ ...prev, [type]: [...prev[type], value.trim()] }));
-    setter("");
-  };
-
-  const removeTag = (type: "skills" | "languages", index: number) => {
-    setFormData((prev) => ({ ...prev, [type]: prev[type].filter((_, i) => i !== index) }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({ ...prev, [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    const payload = {
+      ...formData,
+      skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean),
+      languages: formData.languages.split(",").map(l => l.trim()).filter(Boolean),
+    };
+
     try {
       const response = await fetch("/api/cv-processor", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-user-id": "hackathon_session_user" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-      if ((await response.json()).success) router.push("/job-hunter");
-      else alert("Submission failed.");
-    } catch { alert("System communication error."); }
+      const data = await response.json();
+      if (data.success) router.push("/job-hunter");
+    } catch { alert("Error connecting to server."); }
     finally { setLoading(false); }
   };
 
@@ -69,43 +59,79 @@ export default function CVBuilderPage() {
           <ArrowLeft size={24} className="mr-3" /> Back
         </Link>
 
-        <form onSubmit={handleSubmit} className="space-y-12">
-          <Section title="Personal Identification">
+        <form onSubmit={handleSubmit} className="space-y-10">
+          <Card title="Personal Identification">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Input label="Given Name" value={formData.firstName} onChange={(e:any) => setFormData({...formData, firstName: e.target.value})} />
-              <Input label="Surname" value={formData.lastName} onChange={(e:any) => setFormData({...formData, lastName: e.target.value})} />
-              <Input label="Date of Birth" type="date" value={formData.dob} onChange={(e:any) => setFormData({...formData, dob: e.target.value})} />
+              <InputField label="First Name" name="firstName" required placeholder="e.g., John" value={formData.firstName} onChange={handleChange} />
+              <InputField label="Last Name" name="lastName" placeholder="e.g., Doe" value={formData.lastName} onChange={handleChange} />
+              <InputField label="Headline" name="headline" required placeholder="e.g., Undergraduate Student / Full Stack Developer" value={formData.headline} onChange={handleChange} />
+              <InputField label="Email Address" name="email" required type="email" placeholder="e.g., john.doe@example.com" value={formData.email} onChange={handleChange} />
+              <InputField label="Phone Number" name="phone" required placeholder="e.g., +880 1XXXXXXXXX" value={formData.phone} onChange={handleChange} />
+              <InputField label="Address" name="address" required placeholder="e.g., Dhaka, Bangladesh" value={formData.address} onChange={handleChange} />
+              <InputField label="Date of Birth" name="dob" required type="date" value={formData.dob} onChange={handleChange} />
+              <InputField label="LinkedIn URL" name="linkedIn" placeholder="e.g., linkedin.com/in/johndoe" value={formData.linkedIn} onChange={handleChange} />
+              <InputField label="GitHub URL" name="github" placeholder="e.g., github.com/johndoe" value={formData.github} onChange={handleChange} />
             </div>
-          </Section>
+          </Card>
 
-          <Section title="Academic History">
+          <Card title="Professional Summary">
+            <TextArea name="summary" placeholder="Briefly describe your career objectives and corporate ambitions..." value={formData.summary} onChange={handleChange} />
+          </Card>
+
+          <Card title="Academic History">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Input label="SSC Institution" value={formData.school} onChange={(e:any) => setFormData({...formData, school: e.target.value})} />
-              <Input label="SSC Grade/GPA (Out of 5.00)" value={formData.sscGrade} onChange={(e:any) => setFormData({...formData, sscGrade: e.target.value})} />
-              <Input label="HSC Institution" value={formData.college} onChange={(e:any) => setFormData({...formData, college: e.target.value})} />
-              <Input label="HSC Grade/GPA (Out of 5.00)" value={formData.hscGrade} onChange={(e:any) => setFormData({...formData, hscGrade: e.target.value})} />
+              <InputField label="SSC School Name" name="sscSchool" required placeholder="e.g., Notre Dame College" value={formData.sscSchool} onChange={handleChange} />
+              <SelectField label="SSC Group" name="sscGroup" required options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
+              <InputField label="SSC Passing Year" name="sscYear" required type="number" placeholder="e.g., 2020" value={formData.sscYear} onChange={handleChange} />
+              <InputField label="Result / GPA (Out of 5.00)" name="sscGpa" required placeholder="e.g., 5.00" value={formData.sscGpa} onChange={handleChange} />
             </div>
-            
-            <div className="mt-10 pt-10 border-t border-slate-200">
-              <label className="flex items-center space-x-4 cursor-pointer text-xl font-bold text-[#1E3A8A]">
-                <input type="checkbox" checked={formData.isUniversityApplicable} onChange={(e) => setFormData({...formData, isUniversityApplicable: e.target.checked})} className="w-6 h-6 accent-[#1E3A8A]" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+              <InputField label="HSC College Name" name="hscCollege" required placeholder="e.g., Notre Dame College" value={formData.hscCollege} onChange={handleChange} />
+              <SelectField label="HSC Group" name="hscGroup" required options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
+              <InputField label="HSC Passing Year" name="hscYear" required type="number" placeholder="e.g., 2022" value={formData.hscYear} onChange={handleChange} />
+              <InputField label="Result / GPA (Out of 5.00)" name="hscGpa" required placeholder="e.g., 5.00" value={formData.hscGpa} onChange={handleChange} />
+            </div>
+            <div className="mt-10 border-t pt-8">
+              <label className="flex items-center space-x-3 cursor-pointer text-[#1E3A8A] font-bold text-lg">
+                <input type="checkbox" name="isUniEnabled" checked={formData.isUniEnabled} onChange={handleChange} className="w-6 h-6 accent-[#1E3A8A]" />
                 <span>Add University / Higher Education Credentials</span>
               </label>
-              {formData.isUniversityApplicable && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 p-8 bg-white rounded-2xl border border-slate-200 shadow-sm">
-                  <Input label="University Name" value={formData.university} onChange={(e:any) => setFormData({...formData, university: e.target.value})} />
-                  <Input label="Core Major" value={formData.major} onChange={(e:any) => setFormData({...formData, major: e.target.value})} />
-                  <Input label="Graduation Year" type="number" value={formData.yearOfPassing} onChange={(e:any) => setFormData({...formData, yearOfPassing: e.target.value})} />
-                  <Input label="University CGPA (Out of 4.00)" value={formData.uniGrade} onChange={(e:any) => setFormData({...formData, uniGrade: e.target.value})} />
+              {formData.isUniEnabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 p-8 bg-slate-50 rounded-xl border border-slate-200">
+                  <InputField label="Degree" name="uniDegree" required={formData.isUniEnabled} placeholder="e.g., B.Sc." value={formData.uniDegree} onChange={handleChange} />
+                  <InputField label="University Name" name="uniName" required={formData.isUniEnabled} placeholder="e.g., BUET" value={formData.uniName} onChange={handleChange} />
+                  <InputField label="Department / Major" name="uniMajor" required={formData.isUniEnabled} placeholder="e.g., Computer Science" value={formData.uniMajor} onChange={handleChange} />
+                  <InputField label="Graduation Year" name="uniYear" required={formData.isUniEnabled} type="number" placeholder="e.g., 2026" value={formData.uniYear} onChange={handleChange} />
+                  <InputField label="Result / CGPA (Out of 4.00)" name="uniGpa" required={formData.isUniEnabled} placeholder="e.g., 3.85" value={formData.uniGpa} onChange={handleChange} />
                 </div>
               )}
             </div>
-          </Section>
+          </Card>
 
-          <Section title="Competencies">
-            <TagInput label="Core Technical Competencies" tags={formData.skills} input={skillInput} setInput={setSkillInput} onAdd={() => handleTagAdd("skills", skillInput, setSkillInput)} onRemove={(i: number) => removeTag("skills", i)} />
-            <TagInput label="Linguistic Proficiencies" tags={formData.languages} input={langInput} setInput={setLangInput} onAdd={() => handleTagAdd("languages", langInput, setLangInput)} onRemove={(i: number) => removeTag("languages", i)} />
-          </Section>
+          <Card title="Experience & Achievements">
+            <label className="flex items-center space-x-3 cursor-pointer text-[#1E3A8A] font-bold text-lg mb-6">
+              <input type="checkbox" name="isWorkEnabled" checked={formData.isWorkEnabled} onChange={handleChange} className="w-6 h-6 accent-[#1E3A8A]" />
+              <span>Add Professional Work History</span>
+            </label>
+            {formData.isWorkEnabled && (
+              <div className="space-y-6">
+                <InputField label="Title / Role" name="workTitle" required={formData.isWorkEnabled} placeholder="e.g., Junior Developer" value={formData.workTitle} onChange={handleChange} />
+                <InputField label="Organization" name="workCompany" required={formData.isWorkEnabled} placeholder="e.g., Tech Corp" value={formData.workCompany} onChange={handleChange} />
+                <InputField label="Year / Date" name="workYear" required={formData.isWorkEnabled} placeholder="e.g., 2024-Present" value={formData.workYear} onChange={handleChange} />
+                <TextArea label="Description" name="workDesc" value={formData.workDesc} onChange={handleChange} />
+              </div>
+            )}
+          </Card>
+
+          <Card title="Technical Competencies">
+            <InputField label="Skills" name="skills" required placeholder="e.g., React, Python, Node.js, PostgreSQL" value={formData.skills} onChange={handleChange} />
+            <InputField label="Languages" name="languages" placeholder="e.g., English, Bengali" value={formData.languages} onChange={handleChange} />
+          </Card>
+
+          <Card title="Additional Specifications">
+            <TextArea label="Projects" name="projects" value={formData.projects} onChange={handleChange} />
+            <TextArea label="Certifications" name="certs" value={formData.certs} onChange={handleChange} />
+          </Card>
 
           <button type="submit" className="w-full bg-[#1E3A8A] text-white text-2xl font-bold py-6 rounded-2xl hover:bg-[#153073] transition-all shadow-xl">
             Process
@@ -116,7 +142,7 @@ export default function CVBuilderPage() {
   );
 }
 
-function Section({ title, children }: { title: string, children: React.ReactNode }) {
+function Card({ title, children }: { title: string, children: React.ReactNode }) {
   return (
     <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-100">
       <h2 className="text-3xl font-extrabold tracking-tight text-[#1E3A8A] mb-10">{title}</h2>
@@ -125,30 +151,32 @@ function Section({ title, children }: { title: string, children: React.ReactNode
   );
 }
 
-function Input({ label, ...props }: any) {
+function InputField({ label, required, ...props }: any) {
   return (
     <div>
-      <label className="block text-lg font-semibold text-slate-800 mb-3">{label}</label>
-      <input {...props} className="w-full p-5 text-lg bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20 outline-none transition-all" />
+      <label className="block text-lg font-semibold text-slate-800 mb-3">{label} {required && <span className="text-red-500">*</span>}</label>
+      <input {...props} className="w-full p-5 text-lg text-slate-900 bg-white border-2 border-slate-200 rounded-xl placeholder:text-slate-400 focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20 outline-none transition-all" />
     </div>
   );
 }
 
-function TagInput({ label, tags, input, setInput, onAdd, onRemove }: any) {
+function SelectField({ label, required, options, ...props }: any) {
   return (
-    <div className="mb-8">
-      <label className="block text-lg font-semibold text-slate-800 mb-3">{label}</label>
-      <div className="flex flex-wrap gap-3 mb-4">
-        {tags.map((t: string, i: number) => (
-          <span key={i} className="flex items-center gap-2 px-4 py-2 bg-[#1E3A8A]/10 text-[#1E3A8A] rounded-full font-medium">
-            {t} <X size={16} className="cursor-pointer" onClick={() => onRemove(i)} />
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-4">
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e: KeyboardEvent) => e.key === 'Enter' && (e.preventDefault(), onAdd())} className="flex-grow p-5 text-lg bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-[#1E3A8A]" placeholder="Type and press Enter..." />
-        <button type="button" onClick={onAdd} className="p-5 bg-slate-800 text-white rounded-xl"><Plus /></button>
-      </div>
+    <div>
+      <label className="block text-lg font-semibold text-slate-800 mb-3">{label} {required && <span className="text-red-500">*</span>}</label>
+      <select {...props} className="w-full p-5 text-lg text-slate-900 bg-white border-2 border-slate-200 rounded-xl focus:border-[#1E3A8A] outline-none transition-all">
+        <option value="">Select...</option>
+        {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    </div>
+  );
+}
+
+function TextArea({ label, ...props }: any) {
+  return (
+    <div className="mt-4">
+      {label && <label className="block text-lg font-semibold text-slate-800 mb-3">{label}</label>}
+      <textarea {...props} className="w-full p-5 text-lg text-slate-900 bg-white border-2 border-slate-200 rounded-xl placeholder:text-slate-400 focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20 outline-none transition-all h-32" />
     </div>
   );
 }
