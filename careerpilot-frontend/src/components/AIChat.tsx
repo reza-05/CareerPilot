@@ -1,14 +1,27 @@
 "use client";
 
-import React, { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React, { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input"; 
+import { Bot, Loader2, Send, Sparkles, UserRound } from "lucide-react";
 
-export default function AIChat() {
+export default function AIChat({
+  initialPrompt = "",
+  promptVersion = 0,
+}: {
+  initialPrompt?: string;
+  promptVersion?: number;
+}) {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const lastPromptVersion = useRef(-1);
+
+  useEffect(() => {
+    if (initialPrompt && promptVersion !== lastPromptVersion.current) {
+      setInput(initialPrompt);
+      lastPromptVersion.current = promptVersion;
+    }
+  }, [initialPrompt, promptVersion]);
 
   const sendMessage = async () => {
     const trimmedInput = input.trim();
@@ -27,7 +40,10 @@ export default function AIChat() {
       const response = await fetch("/api/query-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmedInput }), // 💻 Fixed back to 'query' to stop the 422 error
+        body: JSON.stringify({
+          query: trimmedInput,
+          history: messages,
+        }),
       });
 
       if (!response.ok) throw new Error("Connection failed");
@@ -46,41 +62,103 @@ export default function AIChat() {
   };
 
   return (
-    <Card className="w-full max-w-md bg-neutral-900 border-neutral-800 shadow-xl mt-6">
-      <CardHeader>
-        <CardTitle className="text-xl font-bold text-white">AI Chat</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Message area */}
-        <div className="h-64 overflow-y-auto space-y-4 p-4 border border-neutral-800 rounded-lg bg-neutral-950">
-          {messages.length === 0 && <p className="text-neutral-500 text-sm italic">No messages yet...</p>}
-          {messages.map((m, i) => (
-            <div key={i} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
-              <span className={`text-xs mb-1 ${m.role === "user" ? "text-blue-400" : "text-green-400"}`}>
-                {m.role === "user" ? "You" : "AI"}
-              </span>
-              <p className="bg-neutral-800 text-white px-3 py-2 rounded-lg text-sm max-w-[85%] whitespace-pre-wrap">
-                {m.content}
-              </p>
-            </div>
-          ))}
-          {loading && <p className="text-neutral-500 text-sm animate-pulse">AI is thinking...</p>}
+    <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1E3A8A] text-white shadow-sm">
+            <Bot size={20} />
+          </div>
+          <div>
+            <h2 className="text-base font-bold tracking-tight text-slate-950">CareerPilot Assistant</h2>
+            <p className="text-xs font-medium text-slate-500">CV-grounded career guidance</p>
+          </div>
         </div>
+        <div className="hidden items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-[#1E3A8A] sm:flex">
+          <Sparkles size={13} />
+          RAG Enabled
+        </div>
+      </div>
 
-        {/* Input area with high-contrast classes */}
-        <div className="flex gap-2">
-          <Input 
-            value={input} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)} 
-            placeholder="Ask something..."
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && sendMessage()}
-            className="bg-neutral-800 border-neutral-700 text-white placeholder:text-neutral-400"
-          />
-          <Button onClick={sendMessage} disabled={loading} className="bg-white text-black hover:bg-neutral-200">
-            Send
-          </Button>
+      <div className="h-[280px] overflow-y-auto bg-gradient-to-b from-white to-slate-50/60 p-5 md:h-[300px]">
+        {messages.length === 0 && !loading && (
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1E3A8A]">
+              <Sparkles size={24} />
+            </div>
+            <p className="text-sm font-bold text-slate-800">Ask about fit, gaps, roadmap, or cover letters.</p>
+            <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
+              Your answers are grounded in the CV or profile you processed earlier.
+            </p>
+          </div>
+        )}
+
+        <div className="space-y-5">
+          {messages.map((m, i) => {
+            const isUser = m.role === "user";
+            return (
+              <div key={i} className={`flex items-start gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
+                {!isUser && (
+                  <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1E3A8A] text-white">
+                    <Bot size={16} />
+                  </div>
+                )}
+                <div className={`max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col`}>
+                  <span className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    {isUser ? "You" : "Assistant"}
+                  </span>
+                  <p
+                    className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                      isUser
+                        ? "rounded-tr-sm bg-[#1E3A8A] text-white"
+                        : "rounded-tl-sm border border-slate-200 bg-white text-slate-700"
+                    }`}
+                  >
+                    {m.content}
+                  </p>
+                </div>
+                {isUser && (
+                  <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                    <UserRound size={15} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {loading && (
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1E3A8A] text-white">
+                <Bot size={16} />
+              </div>
+              <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-500 shadow-sm">
+                <Loader2 className="animate-spin text-[#1E3A8A]" size={16} />
+                Thinking with your CV context...
+              </div>
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      <div className="border-t border-slate-100 bg-white p-4">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-[#1E3A8A]/50 focus-within:bg-white">
+          <Input
+            value={input}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}
+            placeholder="Ask CareerPilot about your next step..."
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === "Enter" && sendMessage()}
+            className="h-11 border-0 bg-transparent px-3 text-sm font-medium text-slate-900 shadow-none placeholder:text-slate-400 focus-visible:border-0 focus-visible:ring-0"
+          />
+          <button
+            type="button"
+            onClick={sendMessage}
+            disabled={loading || !input.trim()}
+            className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          >
+            <span className="hidden sm:inline">Send</span>
+            <Send size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -56,17 +56,26 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
 
       // রেসপন্স স্ট্যাটাস কোড এবং সাকসেস ফ্ল্যাগ ভ্যালিডেশন
       if (response.ok && data?.success) {
+        localStorage.setItem("careerpilot_profile_ready", "true");
         if (onUploadSuccess) {
           onUploadSuccess("Resume Vectorized Successfully");
         }
         // সাকসেসফুলি ক্রোমাডিবি-তে জমা হলে সরাসরি জব হান্টারে রিডাইরেক্ট
         router.push('/job-hunter');
       } else {
-        setErrorNotification(data?.error || "Vector database synchronization failed.");
+        const rawError = data?.error || data?.detail || "Vector database synchronization failed.";
+        const friendlyError = String(rawError).includes("429") || String(rawError).includes("RESOURCE_EXHAUSTED")
+          ? "Gemini quota was busy. Local fallback is now enabled — please click Process Resume again."
+          : rawError;
+        setErrorNotification(friendlyError);
       }
     } catch (error: any) {
       console.error("Upload workflow captured an exception:", error);
-      setErrorNotification(error?.message || "Internal Server Error during data vector processing initialization.");
+      const rawError = error?.message || "Internal Server Error during data vector processing initialization.";
+      const friendlyError = String(rawError).includes("429") || String(rawError).includes("RESOURCE_EXHAUSTED")
+        ? "Gemini quota was busy. Local fallback is now enabled — please click Process Resume again."
+        : rawError;
+      setErrorNotification(friendlyError);
     } finally {
       setLoading(false);
     }

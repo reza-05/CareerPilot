@@ -2,17 +2,15 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from google import genai
-from google.genai import types  # Imported for strict hackathon JSON schema constraints
+from google.genai import types
 from tavily import TavilyClient
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
-import json
-import hashlib
-import random
+from app.services.rag_service import CVVectorEngine
+import shutil, os, json, re
 
-# --- CONFIG & INITIALIZATION ---
 class Settings(BaseSettings):
     google_api_key: str
     tavily_api_key: str
@@ -21,23 +19,196 @@ class Settings(BaseSettings):
 settings = Settings()
 client = genai.Client(api_key=settings.google_api_key)
 tavily = TavilyClient(api_key=settings.tavily_api_key)
-
-# Cleaned up router decoration to avoid /api/api collision paths
 router = APIRouter(tags=["Job Hunter"])
-cv_context = {"text": ""}
+vector_engine = CVVectorEngine()
+
+UPLOAD_DIR = "./storage/temp_cvs"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 class JobRequest(BaseModel):
     query: str
+    history: list = []
 
-# --- Pydantic Schema for Strict Gemini JSON Output Compliance ---
-class JobAnalysisSchema(BaseModel):
-    matchScore: int = Field(description="An integer match percentage score strictly between 70 and 99")
-    matchReason: str = Field(description="A concise 1-sentence analytical explanation of WHY this specific job aligns (or doesn't align) with the candidate's CV strengths")
-    salaryRange: str = Field(description="The extracted or estimated salary bracket from the text, formatted like '$80k - $110k'. Use 'Not Specified' if missing.")
-    applicationDeadline: str = Field(description="The final date to submit an application or structural milestones like 'Open until filled' if not explicitly noted.")
-    location: str = Field(description="The structural operational location setup. Must extract formats like 'Remote', 'Dhaka, Bangladesh', or 'Hybrid'.")
+STOPWORDS = {
+    "the", "and", "for", "with", "from", "that", "this", "you", "your", "are",
+    "will", "have", "has", "job", "role", "work", "team", "about", "apply",
+    "internship", "software", "engineer", "engineering", "developer"
+}
 
-# --- TRACKER DATABASE SETUP ---
+def extract_keywords(text: str, limit: int = 8) -> list[str]:
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9+#.]{2,}", text.lower())
+    seen = []
+    for token in tokens:
+        if token not in STOPWORDS and token not in seen:
+            seen.append(token)
+    return seen[:limit]
+
+def build_local_match_reason(job_description: str, cv_context: str, fit_percent: int) -> str:
+    if not cv_context or cv_context == "No CV data available.":
+        return f"This role has a {fit_percent}% programmatic match, but the CV context is limited; upload a richer CV for stronger reasoning."
+
+    job_keywords = set(extract_keywords(job_description, limit=40))
+    cv_keywords = extract_keywords(cv_context, limit=40)
+    overlaps = [word for word in cv_keywords if word in job_keywords][:6]
+
+    if overlaps:
+        return (
+            f"This role scores {fit_percent}% because the job description overlaps with CV evidence around "
+            f"{', '.join(overlaps)}."
+        )
+    return (
+        f"This role scores {fit_percent}% based on semantic similarity between the job description and the uploaded CV sections."
+    )
+
+def extract_job_metadata(job_description: str, query: str) -> dict:
+    text = job_description or ""
+    salary_match = re.search(
+        r"((?:৳|tk\.?|bdt|\$)\s?\d[\d,]*(?:\s?[-–]\s?(?:৳|tk\.?|bdt|\$)?\s?\d[\d,]*)?(?:\s?(?:per month|monthly|/month|k|lakh))?)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    deadline_match = re.search(
+        r"((?:deadline|apply by|last date)[:\s-]*[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|(?:deadline|apply by|last date)[:\s-]*\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    known_locations = [
+        "Dhaka", "Bangladesh", "Remote", "Hybrid", "On-Site", "Mirpur", "Uttara",
+        "Gulshan", "Banani", "Dhanmondi", "Chittagong", "Sylhet"
+    ]
+    found_locations = [location for location in known_locations if re.search(rf"\b{re.escape(location)}\b", text, flags=re.IGNORECASE)]
+    if not found_locations and "dhaka" in query.lower():
+        found_locations = ["Dhaka"]
+
+    return {
+        "salaryRange": salary_match.group(1).strip() if salary_match else "Not Specified",
+        "applicationDeadline": deadline_match.group(1).strip() if deadline_match else "Open until filled",
+        "location": ", ".join(dict.fromkeys(found_locations[:3])) if found_locations else "Not Specified",
+    }
+
+@router.post("/api/upload-cv")
+async def upload_cv(file: UploadFile = File(...)):
+    allowed_extensions = {".pdf", ".docx", ".txt"}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+
+    save_path = os.path.join(UPLOAD_DIR, file.filename)
+    try:
+        with open(save_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        chunk_count = vector_engine.ingest_cv(save_path, file.filename)
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "chunks_indexed": chunk_count,
+            "message": f"CV indexed into {chunk_count} chunks."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/search-jobs")
+async def search_jobs(request: JobRequest):
+    try:
+        results = tavily.search(query=request.query, search_depth="advanced")
+        formatted = []
+
+        for item in results.get("results", []):
+            job_description = item.get("content", "")
+            job_title = item.get("title", "")
+
+            fit_data = vector_engine.compute_fit_score(job_description)
+            fit_score = fit_data["score"]
+            fit_percent = fit_data["percent"]
+
+            relevant_cv_chunks = vector_engine.retrieve_cv_context(job_description, num_results=3)
+            cv_context_str = "\n".join(relevant_cv_chunks) if relevant_cv_chunks else "No CV data available."
+
+            explanation_prompt = (
+                f"Job Title: {job_title}\n\n"
+                f"Job Description:\n{job_description[:800]}\n\n"
+                f"Relevant CV sections:\n{cv_context_str}\n\n"
+                f"Fit score: {fit_percent}%.\n\n"
+                f"Write ONE sentence explaining why this fit score makes sense, referencing the candidate's actual CV experience."
+            )
+
+            salary_location_prompt = (
+                f"From this job posting extract:\n{job_description[:1000]}\n\n"
+                f"Return JSON with keys: salaryRange, applicationDeadline, location. "
+                f"Use 'Not Specified' / 'Open until filled' as fallbacks. Return ONLY valid JSON."
+            )
+
+            match_reason = "Alignment based on CV profile."
+            salary_range = "Not Specified"
+            deadline = "Open until filled"
+            location = "Not Specified"
+
+            try:
+                exp_resp = client.models.generate_content(
+                    model="gemini-2.0-flash", contents=explanation_prompt
+                )
+                match_reason = exp_resp.text.strip()
+
+                meta_resp = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=salary_location_prompt,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
+                )
+                meta = json.loads(meta_resp.text.strip())
+                salary_range = meta.get("salaryRange", "Not Specified")
+                deadline = meta.get("applicationDeadline", "Open until filled")
+                location = meta.get("location", "Not Specified")
+
+            except Exception as ai_err:
+                if "429" in str(ai_err) or "RESOURCE_EXHAUSTED" in str(ai_err):
+                    fallback_meta = extract_job_metadata(job_description, request.query)
+                    match_reason = (
+                        f"Programmatic fit score computed from CV/job similarity: {fit_percent}%. "
+                        "AI explanation is unavailable because the provider quota is exhausted."
+                    )
+                    salary_range = fallback_meta["salaryRange"]
+                    deadline = fallback_meta["applicationDeadline"]
+                    location = fallback_meta["location"]
+
+            item["matchScore"] = round(fit_score, 4)
+            item["matchPercent"] = fit_percent
+            item["matchReason"] = match_reason
+            item["salaryRange"] = salary_range
+            item["applicationDeadline"] = deadline
+            item["location"] = location
+            formatted.append(item)
+
+        return {"results": formatted}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
+
+@router.post("/api/query-cv")
+async def query_cv(request: JobRequest):
+    try:
+        relevant_chunks = vector_engine.retrieve_cv_context(request.query, num_results=5)
+        cv_context = "\n\n".join(relevant_chunks) if relevant_chunks else "No CV uploaded yet."
+        history_str = "\n".join([
+            f"{message.get('role', 'user')}: {message.get('content', '')}"
+            for message in request.history[-6:]
+            if isinstance(message, dict)
+        ])
+        prompt = (
+            f"You are CareerPilot, an expert AI career co-pilot. "
+            f"Use ONLY the candidate's actual CV below — never hallucinate.\n\n"
+            f"--- CV CONTEXT ---\n{cv_context}\n\n"
+            f"--- RECENT CHAT HISTORY ---\n{history_str}\n\n"
+            f"--- QUESTION ---\n{request.query}"
+        )
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        return {"answer": response.text.strip()}
+    except Exception as e:
+        err = str(e)
+        if "429" in err or "RESOURCE_EXHAUSTED" in err:
+            return {"answer": "Rate limit hit — wait ~10 seconds and retry."}
+        return {"answer": f"Error: {err}"}
+
+# --- TRACKER ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///./careerpilot.db"
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -67,106 +238,6 @@ def get_db():
     finally:
         db.close()
 
-# --- PRESERVED GEMINI ROUTES ---
-@router.post("/api/upload-cv")
-async def upload_cv(file: UploadFile = File(...)):
-    try:
-        content = await file.read()
-        cv_context["text"] = content.decode('utf-8', errors='ignore')
-        return {"status": "success", "filename": file.filename}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
-
-@router.post("/api/query-cv")
-async def query_cv(request: JobRequest):
-    try:
-        response = client.models.generate_content(
-            model='gemini-3.5-flash', 
-            contents=f"CV Content: {cv_context['text']}\n\nQuestion: {request.query}"
-        )
-        return {"answer": response.text}
-    except Exception as e:
-        error_msg = str(e)
-        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-            return {"answer": "Slow down a bit, bro! Google's free tier API rate limit reached. Wait 10 seconds and try again."}
-        
-        return {"answer": "AI service error. Please make sure your CV was uploaded and processed correctly."}
-
-# --- SEARCH ROLES ROUTE (AUDITED & UPDATED FOR HACKATHON COMPLIANCE) ---
-@router.post("/api/search-jobs")
-async def search_jobs(request: JobRequest):
-    try:
-        # Dynamically processes natural language strings straight from the frontend input state
-        results = tavily.search(query=request.query, search_depth="advanced")
-        formatted = []
-        
-        cv_text = cv_context["text"] if cv_context["text"] else (
-            "Full-Stack Software Engineer proficient in Python, FastAPI, Next.js, "
-            "Robotics, Embedded Systems, and Competitive Programming from a prestigious "
-            "institution, Islamic University of Technology (IUT)."
-        )
-        
-        for item in results.get("results", []):
-            job_description = item.get("content", "")
-            job_title = item.get("title", "")
-            
-            # Safe local fallback generator seed calculation
-            combined_payload = f"{job_title}{job_description}".encode("utf-8", errors="ignore")
-            hash_integer = int(hashlib.md5(combined_payload).hexdigest(), 16)
-            deterministic_score = 75 + (hash_integer % 21)
-            deterministic_decimal = float(deterministic_score) / 100
-            
-            prompt = (
-                f"Compare this candidate CV layout and Job description details.\n\n"
-                f"Candidate CV content context:\n{cv_text[:1200]}\n\n"
-                f"Target Job post content description:\n{job_description[:1200]}\n\n"
-                f"Analyze the technical alignment profile. Output a valid structural JSON mapping matching the schema.\n"
-                f"You must strictly extract or estimate the following data points from the job description context:\n"
-                f"1. 'salaryRange': Extract explicitly or estimate closely (e.g., '$80k - $110k'). Fallback to 'Not Specified' if completely missing.\n"
-                f"2. 'applicationDeadline': Locate specific date parameters or fall back to 'Open until filled'.\n"
-                f"3. 'location': Identify the regional parameters (e.g., 'Remote', 'Dhaka, Bangladesh', or 'Hybrid').\n"
-                f"4. 'matchReason': Generate exactly a 1-sentence analytical explanation of WHY this specific position aligns or fails to align with the candidate's exact CV strengths."
-            )
-            
-            try:
-                # Upgraded execution call forcing structured JSON out-of-the-box
-                ai_response = client.models.generate_content(
-                    model='gemini-3.5-flash',
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        response_schema=JobAnalysisSchema,
-                        temperature=0.2
-                    )
-                )
-                
-                # Parse guaranteed clean structured response parameters
-                parsed_json = json.loads(ai_response.text.strip())
-                item["matchScore"] = float(parsed_json.get("matchScore", deterministic_score)) / 100
-                item["matchReason"] = parsed_json.get("matchReason", "Strong alignment across structural development stacks.")
-                item["salaryRange"] = parsed_json.get("salaryRange", "Not Specified")
-                item["applicationDeadline"] = parsed_json.get("applicationDeadline", "Open until filled")
-                item["location"] = parsed_json.get("location", "Not Specified")
-                
-            except Exception as inner_error:
-                error_str = str(inner_error)
-                # Catch free-tier quota spikes on individual items without bringing down the search layout
-                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    item["matchReason"] = "Rate limit reached. Matches core structural engineering competencies."
-                else:
-                    item["matchReason"] = "Solid foundational technical stack alignment detected across project histories."
-                
-                item["matchScore"] = deterministic_decimal
-                item["salaryRange"] = "Not Specified"
-                item["applicationDeadline"] = "Open until filled"
-                item["location"] = "Not Specified"
-                
-            formatted.append(item)
-        return {"results": formatted}
-    except Exception:
-        return {"results": []}
-
-# --- TRACKER PIPELINE ENDPOINTS ---
 @router.post("/api/tracker")
 def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db)):
     db_entry = JobTracker(role=job.role, company=job.company, status="Applied")
@@ -192,12 +263,10 @@ def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_
 def fetch_ai_nudge(db: Session = Depends(get_db)):
     try:
         count = db.query(JobTracker).filter(JobTracker.status == "Applied").count()
-        
-        prompt = f"The user has tracked {count} job applications. Give an ultra-short 1-sentence analytical motivational career advice nudge."
         response = client.models.generate_content(
-            model='gemini-3.5-flash',
-            contents=prompt
+            model="gemini-2.0-flash",
+            contents=f"User has {count} active applications. Give a sharp 1-sentence career motivation nudge."
         )
         return {"nudge": response.text.strip()}
     except Exception:
-        return {"nudge": "Keep chasing the momentum! Consistency hits goals."}
+        return {"nudge": "Keep pushing — consistency compounds."}

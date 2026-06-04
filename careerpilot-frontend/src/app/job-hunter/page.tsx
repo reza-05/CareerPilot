@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
 import { DM_Sans } from 'next/font/google';
 
@@ -13,25 +14,62 @@ export default function JobHunter() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [profileReady, setProfileReady] = useState(false);
   
   // Clean string index signature matching tracking states safely
   const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>({});
 
+  useEffect(() => {
+    setProfileReady(localStorage.getItem("careerpilot_profile_ready") === "true");
+  }, []);
+
+  const getSourceName = (url?: string) => {
+    if (!url) return "Job Source";
+    try {
+      const host = new URL(url).hostname.replace(/^www\./, "");
+      return host
+        .split(".")
+        .slice(0, -1)
+        .join(" ")
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+    } catch {
+      return "Job Source";
+    }
+  };
+
   // Core execution block shared by both form submissions and interactive suggestion tag clicks
   const executeSearch = async (targetQuery: string) => {
     if (!targetQuery.trim()) return;
+    if (!profileReady) {
+      setJobs([]);
+      setStatusMessage("Please upload your CV or complete your profile before searching for suitable jobs.");
+      return;
+    }
 
     setLoading(true);
+    setStatusMessage("");
     try {
-      const res = await fetch("http://localhost:8000/api/search-jobs", {
+      const res = await fetch("/api/search-jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: targetQuery }),
       });
       const data = await res.json();
-      if (data.results) setJobs(data.results);
+      if (data.results) {
+        setJobs(data.results);
+        if (data.results.length === 0) {
+          setStatusMessage(data.error || "No jobs found. Try a broader search like 'Software Engineering internships in Dhaka'.");
+        }
+      } else {
+        setJobs([]);
+        setStatusMessage(data.error || "Search failed. Please try again.");
+      }
     } catch (e) {
       console.error("Fetch failed", e);
+      setJobs([]);
+      setStatusMessage("Search failed. Please check that the backend is running.");
     } finally {
       setLoading(false);
     }
@@ -48,7 +86,7 @@ export default function JobHunter() {
     setTrackingStates(prev => ({ ...prev, [jobUrl]: "saving" }));
 
     try {
-      const response = await fetch("http://localhost:8000/api/tracker", {
+      const response = await fetch("/api/tracker", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -106,12 +144,29 @@ export default function JobHunter() {
             
             <button 
               type="submit"
-              disabled={loading || !searchQuery.trim()}
+              disabled={loading || !searchQuery.trim() || !profileReady}
               className="bg-[#1E3A8A] hover:bg-[#1D4ED8] text-white text-sm sm:text-lg font-bold px-5 sm:px-8 py-3 sm:py-4 rounded-xl shadow-md transition-all text-center w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 active:scale-[0.99] disabled:bg-slate-100 disabled:text-slate-400"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : "Search Opportunities"}
             </button>
           </form>
+
+          {!profileReady && (
+            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-left shadow-sm">
+              <p className="text-sm font-bold text-[#1E3A8A]">Profile required before job matching</p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Please upload your CV or complete your profile first. CareerPilot uses your profile to calculate fit scores and recommend suitable opportunities.
+              </p>
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <Link href="/" className="rounded-lg bg-[#1E3A8A] px-4 py-2 text-center text-sm font-bold text-white hover:bg-[#1D4ED8]">
+                  Upload CV
+                </Link>
+                <Link href="/cv-builder" className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-center text-sm font-bold text-[#1E3A8A] hover:bg-blue-50">
+                  Build Profile
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Interactive Minimalist Blue Suggestion Pills */}
           <div className="flex flex-wrap justify-center items-center gap-2 mt-6 sm:mt-8 max-w-2xl mx-auto px-2">
@@ -125,11 +180,12 @@ export default function JobHunter() {
               <button
                 key={index}
                 type="button"
+                disabled={!profileReady}
                 onClick={() => {
                   setSearchQuery(pill.query);
                   executeSearch(pill.query);
                 }}
-                className="bg-[#EFF6FF] border border-[#BFDBFE]/50 text-[#1E3A8A] font-semibold text-xs rounded-lg px-4 py-1.5 hover:bg-[#DBEAFE] transition-all shadow-sm cursor-pointer active:scale-95 select-none"
+                className="bg-[#EFF6FF] border border-[#BFDBFE]/50 text-[#1E3A8A] font-semibold text-xs rounded-lg px-4 py-1.5 hover:bg-[#DBEAFE] transition-all shadow-sm cursor-pointer active:scale-95 select-none disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {pill.label}
               </button>
@@ -139,11 +195,17 @@ export default function JobHunter() {
 
         {/* Shades Of Blue Component Ecosystem (Job Cards) */}
         <div className="space-y-6 sm:space-y-8">
+          {statusMessage && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center text-sm font-semibold text-[#1E3A8A]">
+              {statusMessage}
+            </div>
+          )}
+
           {jobs.map((job, i) => {
             const currentStatus = trackingStates[job.url];
-            const displayCompany = job.company || "Verified Employer Portfolio";
+            const displayCompany = job.company || getSourceName(job.url);
             const coverLetterPrompt = encodeURIComponent(`Draft a personalized cover letter for this ${job.title} role at ${displayCompany} grounded in my CV.`);
-            const chatRedirectUrl = `/?prompt=${coverLetterPrompt}`;
+            const chatRedirectUrl = `/assistant?prompt=${coverLetterPrompt}`;
 
             return (
               <div key={i} className="group relative bg-white border border-slate-100 shadow-xl shadow-slate-200/40 rounded-2xl p-5 sm:p-10 mb-6 sm:mb-8 max-w-4xl mx-auto hover:border-[#1E3A8A]/40 transition-all duration-200">
@@ -191,7 +253,7 @@ export default function JobHunter() {
                   {/* Performance Alignment Metric Block */}
                   <div className="self-start md:self-start shrink-0 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 sm:px-5 sm:py-4 min-w-[5.5rem] sm:min-w-[6rem] flex flex-col items-center justify-center shadow-inner mt-2 md:mt-0">
                     <div className="text-2xl sm:text-3xl font-bold text-[#1E3A8A] tracking-tight">
-                      {job.matchScore ? (job.matchScore * 100).toFixed(0) : "75"}%
+                      {job.matchPercent ?? 0}%
                     </div>
                     <div className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1">Match Index</div>
                   </div>

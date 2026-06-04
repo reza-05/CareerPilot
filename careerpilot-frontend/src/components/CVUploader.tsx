@@ -41,6 +41,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
       const data = await response.json();
 
       if (response.ok && data?.success) {
+        localStorage.setItem("careerpilot_profile_ready", "true");
         onUploadSuccess("Resume Vectorized Successfully");
         router.push('/job-hunter');
       } else {

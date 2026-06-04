@@ -30,18 +30,20 @@ export default function RootLayout({
 
             {/* View Mode Switching Links */}
             <div className="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/40">
-              <Link 
-                href="/" 
-                className="text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 transition"
-              >
-                AI CV Hub
-              </Link>
-              <Link 
-                href="/tracker" 
-                className="text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 transition"
-              >
-                Kanban Pipeline
-              </Link>
+              {[
+                { href: "/", label: "CV" },
+                { href: "/job-hunter", label: "Jobs" },
+                { href: "/assistant", label: "Assistant" },
+                { href: "/tracker", label: "Tracker" },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 transition"
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
 
           </div>

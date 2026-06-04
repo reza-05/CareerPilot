@@ -8,6 +8,7 @@ import Link from "next/link";
 export default function CVBuilderPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
   const [formData, setFormData] = useState({
     firstName: "", lastName: "", headline: "", email: "", phone: "", address: "", dob: "", linkedIn: "", github: "",
     summary: "",
@@ -29,6 +30,47 @@ export default function CVBuilderPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const requiredFields: { name: keyof typeof formData; label: string }[] = [
+      { name: "firstName", label: "First Name" },
+      { name: "headline", label: "Headline" },
+      { name: "email", label: "Email Address" },
+      { name: "phone", label: "Phone Number" },
+      { name: "address", label: "Address" },
+      { name: "dob", label: "Date of Birth" },
+      { name: "sscSchool", label: "SSC School" },
+      { name: "sscGroup", label: "SSC Group" },
+      { name: "sscYear", label: "SSC Passing Year" },
+      { name: "sscGpa", label: "SSC GPA" },
+      { name: "hscCollege", label: "HSC College" },
+      { name: "hscGroup", label: "HSC Group" },
+      { name: "hscYear", label: "HSC Passing Year" },
+      { name: "hscGpa", label: "HSC GPA" },
+      { name: "skills", label: "Skills" },
+    ];
+
+    if (formData.isWorkEnabled) {
+      requiredFields.push(
+        { name: "workTitle", label: "Work Title" },
+        { name: "workCompany", label: "Work Organization" },
+        { name: "workYear", label: "Work Timeline" }
+      );
+    }
+
+    const missingField = requiredFields.find((field) => {
+      const value = formData[field.name];
+      return typeof value === "string" && !value.trim();
+    });
+
+    if (missingField) {
+      setValidationError(`${missingField.label} is required before processing your CV.`);
+      const field = document.querySelector<HTMLElement>(`[name="${missingField.name}"]`);
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus();
+      return;
+    }
+
+    setValidationError("");
     setLoading(true);
 
     const payload = {
@@ -44,7 +86,10 @@ export default function CVBuilderPage() {
         body: JSON.stringify(payload),
       });
       const data = await response.json();
-      if (data.success) router.push("/job-hunter");
+      if (data.success) {
+        localStorage.setItem("careerpilot_profile_ready", "true");
+        router.push("/job-hunter");
+      }
       else alert("Submission failed.");
     } catch { alert("Error connecting to server."); }
     finally { setLoading(false); }
@@ -58,15 +103,21 @@ export default function CVBuilderPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] py-16 px-4 md:px-8">
-      <div className="max-w-6xl mx-auto">
-        <Link href="/" className="inline-flex items-center text-[#1E3A8A] font-bold text-lg hover:underline mb-12 font-[Urbanist]">
-          <ArrowLeft size={24} className="mr-3" /> Back
+    <div className="min-h-screen bg-[#f8f9fa] py-10 px-4 md:px-6">
+      <div className="max-w-5xl mx-auto">
+        <Link href="/" className="inline-flex items-center text-[#1E3A8A] font-bold text-sm hover:underline mb-8 font-[Urbanist]">
+          <ArrowLeft size={18} className="mr-2" /> Back
         </Link>
 
-        <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-12">
+        {validationError && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {validationError}
+          </div>
+        )}
+
+        <form noValidate onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-8">
           <Card title="Personal Identification">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <InputField label="First Name *" name="firstName" required placeholder="e.g., John" value={formData.firstName} onChange={handleChange} />
               <InputField label="Surname (Optional)" name="lastName" placeholder="e.g., Doe" value={formData.lastName} onChange={handleChange} />
               <InputField label="Headline *" name="headline" required placeholder="e.g., Undergraduate Student / Full Stack Developer" value={formData.headline} onChange={handleChange} />
@@ -84,9 +135,9 @@ export default function CVBuilderPage() {
           </Card>
 
           <Card title="Academic History">
-            <div className="space-y-10">
+            <div className="space-y-6">
               <AcademicSubSection title="Secondary School (SSC)">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <InputField label="School *" name="sscSchool" required placeholder="e.g., Rajshahi Collegiate School" value={formData.sscSchool} onChange={handleChange} />
                   <SelectField label="SSC Group *" name="sscGroup" required options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
                   <InputField label="SSC Passing Year *" name="sscYear" required type="number" placeholder="e.g., 2020" value={formData.sscYear} onChange={handleChange} />
@@ -94,7 +145,7 @@ export default function CVBuilderPage() {
                 </div>
               </AcademicSubSection>
               <AcademicSubSection title="Higher Secondary (HSC)">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <InputField label="College *" name="hscCollege" required placeholder="e.g., Dhaka College" value={formData.hscCollege} onChange={handleChange} />
                   <SelectField label="HSC Group *" name="hscGroup" required options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
                   <InputField label="HSC Passing Year *" name="hscYear" required type="number" placeholder="e.g., 2022" value={formData.hscYear} onChange={handleChange} />
@@ -102,7 +153,7 @@ export default function CVBuilderPage() {
                 </div>
               </AcademicSubSection>
               <AcademicSubSection title="University (If Applicable)">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <InputField label="Degree (If Applicable)" name="uniDegree" placeholder="e.g., B.Sc." value={formData.uniDegree} onChange={handleChange} />
                   <InputField label="Institution / University Name (If Applicable)" name="uniName" placeholder="e.g., Islamic University of Technology" value={formData.uniName} onChange={handleChange} />
                   <InputField label="Department / Major (If Applicable)" name="uniMajor" placeholder="e.g., Computer Science and Engineering" value={formData.uniMajor} onChange={handleChange} />
@@ -114,12 +165,12 @@ export default function CVBuilderPage() {
           </Card>
 
           <Card title="Experience & Achievements">
-            <label className="flex items-center space-x-3 cursor-pointer text-[#1E3A8A] font-bold text-lg mb-6 font-[Urbanist]">
-              <input type="checkbox" name="isWorkEnabled" checked={formData.isWorkEnabled} onChange={handleChange} className="w-6 h-6 accent-[#1E3A8A]" />
+            <label className="flex items-center space-x-3 cursor-pointer text-[#1E3A8A] font-bold text-sm mb-5 font-[Urbanist]">
+              <input type="checkbox" name="isWorkEnabled" checked={formData.isWorkEnabled} onChange={handleChange} className="w-4 h-4 accent-[#1E3A8A]" />
               <span>Add Professional Work History</span>
             </label>
             {formData.isWorkEnabled && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <InputField label="Title / Role *" name="workTitle" required={formData.isWorkEnabled} placeholder="e.g., Junior Developer" value={formData.workTitle} onChange={handleChange} />
                 <InputField label="Organization *" name="workCompany" required={formData.isWorkEnabled} placeholder="e.g., Tech Corp" value={formData.workCompany} onChange={handleChange} />
                 <InputField label="Year / Date *" name="workYear" required={formData.isWorkEnabled} placeholder="e.g., 2024-Present" value={formData.workYear} onChange={handleChange} />
@@ -129,7 +180,7 @@ export default function CVBuilderPage() {
           </Card>
 
           <Card title="Technical Competencies">
-            <div className="grid grid-cols-1 gap-8">
+            <div className="grid grid-cols-1 gap-5">
               <InputField label="Skills *" name="skills" required placeholder="e.g., React, Node.js, Python, PostgreSQL" value={formData.skills} onChange={handleChange} />
               <InputField label="Languages (Optional)" name="languages" placeholder="e.g., English, Bengali" value={formData.languages} onChange={handleChange} />
             </div>
@@ -140,7 +191,7 @@ export default function CVBuilderPage() {
             <TextArea label="Certifications (Optional)" name="certs" placeholder="e.g.,&#10;- AWS Certified Cloud Practitioner (2025)&#10;- Cisco Certified Network Associate (CCNA)..." value={formData.certs} onChange={handleChange} />
           </Card>
 
-          <button type="submit" className="w-full bg-[#1E3A8A] text-white text-2xl font-extrabold py-8 rounded-2xl hover:bg-[#153073] transition-all shadow-xl font-[Urbanist]">
+          <button type="submit" className="w-full bg-[#1E3A8A] text-white text-lg font-bold py-4 rounded-xl hover:bg-[#153073] transition-all shadow-lg font-[Urbanist]">
             Process
           </button>
         </form>
@@ -151,8 +202,8 @@ export default function CVBuilderPage() {
 
 function Card({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="bg-white p-12 rounded-3xl shadow-sm border border-slate-100">
-      <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 mb-8 font-[Urbanist]">{title}</h2>
+    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+      <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mb-6 font-[Urbanist]">{title}</h2>
       {children}
     </div>
   );
@@ -160,8 +211,8 @@ function Card({ title, children }: { title: string, children: React.ReactNode })
 
 function AcademicSubSection({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="bg-slate-50 p-10 rounded-2xl border border-slate-200">
-      <h3 className="text-2xl font-bold text-[#1E3A8A] mb-8 font-[Urbanist]">{title}</h3>
+    <div className="bg-slate-50 p-5 md:p-6 rounded-xl border border-slate-200">
+      <h3 className="text-lg md:text-xl font-bold text-[#1E3A8A] mb-5 font-[Urbanist]">{title}</h3>
       {children}
     </div>
   );
@@ -170,11 +221,11 @@ function AcademicSubSection({ title, children }: { title: string, children: Reac
 function InputField({ label, required, ...props }: any) {
   return (
     <div>
-      <label className="block text-lg md:text-lg font-bold text-slate-800 mb-3 font-[Urbanist]">
+      <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 font-[Urbanist]">
         {label.includes("*") ? label.split("*")[0] : label}
         {required && <span className="text-red-500 font-bold"> *</span>}
       </label>
-      <input {...props} className="w-full py-4 px-5 text-base md:text-lg font-[DM_Sans] text-slate-900 bg-white border-2 border-slate-200 rounded-xl placeholder:text-slate-400 placeholder:text-base md:placeholder:text-lg focus:border-[#1E3A8A] outline-none transition-all" />
+      <input {...props} className="w-full py-3 px-4 text-sm md:text-base font-[DM_Sans] text-slate-900 bg-white border-2 border-slate-200 rounded-lg placeholder:text-slate-400 placeholder:text-sm md:placeholder:text-base focus:border-[#1E3A8A] outline-none transition-all" />
     </div>
   );
 }
@@ -182,11 +233,11 @@ function InputField({ label, required, ...props }: any) {
 function SelectField({ label, required, options, ...props }: any) {
   return (
     <div>
-      <label className="block text-lg md:text-lg font-bold text-slate-800 mb-3 font-[Urbanist]">
+      <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 font-[Urbanist]">
         {label.includes("*") ? label.split("*")[0] : label}
         {required && <span className="text-red-500 font-bold"> *</span>}
       </label>
-      <select {...props} className="w-full py-4 px-5 text-base md:text-lg font-[DM_Sans] text-slate-900 bg-white border-2 border-slate-200 rounded-xl focus:border-[#1E3A8A] outline-none transition-all">
+      <select {...props} className="w-full py-3 px-4 text-sm md:text-base font-[DM_Sans] text-slate-900 bg-white border-2 border-slate-200 rounded-lg focus:border-[#1E3A8A] outline-none transition-all">
         <option value="">Select...</option>
         {options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
       </select>
@@ -196,9 +247,9 @@ function SelectField({ label, required, options, ...props }: any) {
 
 function TextArea({ label, ...props }: any) {
   return (
-    <div className="mt-4">
-      <label className="block text-lg md:text-lg font-bold text-slate-800 mb-3 font-[Urbanist]">{label}</label>
-      <textarea {...props} className="w-full py-4 px-5 text-base md:text-lg font-[DM_Sans] text-slate-900 bg-white border-2 border-slate-200 rounded-xl placeholder:text-slate-400 placeholder:text-base md:placeholder:text-lg focus:border-[#1E3A8A] outline-none transition-all h-40" />
+    <div className="mt-3">
+      <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 font-[Urbanist]">{label}</label>
+      <textarea {...props} className="w-full py-3 px-4 text-sm md:text-base font-[DM_Sans] text-slate-900 bg-white border-2 border-slate-200 rounded-lg placeholder:text-slate-400 placeholder:text-sm md:placeholder:text-base focus:border-[#1E3A8A] outline-none transition-all h-28" />
     </div>
   );
 }
