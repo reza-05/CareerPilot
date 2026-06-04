@@ -1,16 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from google import genai
-from google.genai import types
 from tavily import TavilyClient
 from sqlalchemy import Column, Integer, String, create_engine, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 from typing import Optional
+from app.services.llm_service import LLMService, LLMUnavailableError
 from app.services.rag_service import CVVectorEngine
-import shutil, os, json, re
+import shutil, os, re
 
 class Settings(BaseSettings):
     google_api_key: str
@@ -18,10 +17,10 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
-client = genai.Client(api_key=settings.google_api_key)
 tavily = TavilyClient(api_key=settings.tavily_api_key)
 router = APIRouter(tags=["Job Hunter"])
 vector_engine = CVVectorEngine()
+llm = LLMService()
 
 UPLOAD_DIR = "./storage/temp_cvs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -180,31 +179,23 @@ async def search_jobs(request: JobRequest):
             location = "Not Specified"
 
             try:
-                exp_resp = client.models.generate_content(
-                    model="gemini-2.0-flash", contents=explanation_prompt
-                )
-                match_reason = exp_resp.text.strip()
+                match_reason = llm.generate_text(explanation_prompt, temperature=0.25)
 
-                meta_resp = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=salary_location_prompt,
-                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
-                )
-                meta = json.loads(meta_resp.text.strip())
+                meta = llm.generate_json(salary_location_prompt, temperature=0.1)
                 salary_range = meta.get("salaryRange", "Not Specified")
                 deadline = meta.get("applicationDeadline", "Open until filled")
                 location = meta.get("location", "Not Specified")
 
-            except Exception as ai_err:
-                if "429" in str(ai_err) or "RESOURCE_EXHAUSTED" in str(ai_err):
-                    fallback_meta = extract_job_metadata(job_description, request.query)
-                    match_reason = (
-                        f"Programmatic fit score computed from CV/job similarity: {fit_percent}%. "
-                        "AI explanation is unavailable because the provider quota is exhausted."
-                    )
-                    salary_range = fallback_meta["salaryRange"]
-                    deadline = fallback_meta["applicationDeadline"]
-                    location = fallback_meta["location"]
+            except LLMUnavailableError as ai_err:
+                fallback_meta = extract_job_metadata(job_description, request.query)
+                match_reason = (
+                    f"Fit score computed from CV/job similarity: {fit_percent}%. "
+                    "AI explanation is temporarily unavailable."
+                )
+                salary_range = fallback_meta["salaryRange"]
+                deadline = fallback_meta["applicationDeadline"]
+                location = fallback_meta["location"]
+                print(f"All LLM providers failed during job enrichment: {ai_err}")
 
             item["matchScore"] = round(fit_score, 4)
             item["matchPercent"] = fit_percent
@@ -236,13 +227,11 @@ async def query_cv(request: JobRequest):
             f"--- RECENT CHAT HISTORY ---\n{history_str}\n\n"
             f"--- QUESTION ---\n{request.query}"
         )
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-        return {"answer": response.text.strip()}
+        answer = llm.generate_text(prompt, temperature=0.35)
+        return {"answer": answer}
     except Exception as e:
-        err = str(e)
-        if "429" in err or "RESOURCE_EXHAUSTED" in err:
-            return {"answer": "Rate limit hit — wait ~10 seconds and retry."}
-        return {"answer": f"Error: {err}"}
+        print(f"All LLM providers failed during assistant query: {e}")
+        return {"answer": "The assistant is temporarily unavailable. Please try again in a moment."}
 
 # --- TRACKER ---
 SQLALCHEMY_DATABASE_URL = "sqlite:///./careerpilot.db"
@@ -338,10 +327,11 @@ def delete_tracked_job(id: int, db: Session = Depends(get_db)):
 def fetch_ai_nudge(db: Session = Depends(get_db)):
     try:
         count = db.query(JobTracker).filter(JobTracker.status == "Applied").count()
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=f"User has {count} active applications. Give a sharp 1-sentence career motivation nudge."
+        nudge = llm.generate_text(
+            f"User has {count} active applications. Give a sharp 1-sentence career motivation nudge.",
+            temperature=0.45,
         )
-        return {"nudge": response.text.strip()}
-    except Exception:
-        return {"nudge": "Keep pushing — consistency compounds."}
+        return {"nudge": nudge}
+    except Exception as exc:
+        print(f"All LLM providers failed during tracker nudge: {exc}")
+        return {"nudge": "Progress insight is temporarily unavailable."}

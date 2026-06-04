@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 const navItems = [
   { href: "/", label: "CV", icon: "/brand/cv.png" },
   { href: "/job-hunter", label: "Jobs", icon: "/brand/job.png" },
-  { href: "/assistant", label: "Assistant", shortLabel: "AI" },
+  { href: "/assistant", label: "Assistant", shortLabel: "AI", icon: "/brand/assist.png" },
   { href: "/tracker", label: "Tracker", icon: "/brand/tracker.png" },
 ];
 
@@ -48,19 +48,13 @@ export default function RootLayout({
                   href={item.href}
                   className="group flex shrink-0 items-center gap-1 rounded-xl px-1.5 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3A8A] hover:shadow-sm min-[420px]:gap-1.5 min-[420px]:px-2 min-[420px]:py-2 min-[420px]:text-xs sm:gap-2 sm:px-3.5 sm:text-sm"
                 >
-                  {item.icon ? (
-                    <Image
-                      src={item.icon}
-                      alt=""
-                      width={20}
-                      height={20}
-                      className="h-3.5 w-3.5 object-contain opacity-80 transition group-hover:opacity-100 min-[420px]:h-4 min-[420px]:w-4 sm:h-5 sm:w-5"
-                    />
-                  ) : (
-                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-md bg-[#1E3A8A] text-[7px] font-black text-white shadow-sm min-[420px]:h-4 min-[420px]:w-4 min-[420px]:text-[8px] sm:h-5 sm:w-5 sm:text-[9px]">
-                      AI
-                    </span>
-                  )}
+                  <Image
+                    src={item.icon}
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="h-3.5 w-3.5 object-contain opacity-80 transition group-hover:opacity-100 min-[420px]:h-4 min-[420px]:w-4 sm:h-5 sm:w-5"
+                  />
                   <span className="sm:hidden">{item.shortLabel || item.label}</span>
                   <span className="hidden sm:inline">{item.label}</span>
                 </Link>

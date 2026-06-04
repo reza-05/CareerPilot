@@ -1,12 +1,11 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from app.services.rag_service import CVVectorEngine
-from google import genai
-import os
+from app.services.llm_service import LLMService
 
 router = APIRouter(prefix="/api", tags=["CV Query Engine"])
 vector_engine = CVVectorEngine()
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+llm = LLMService()
 
 class QueryRequest(BaseModel):
     question: str
@@ -27,10 +26,7 @@ async def query_cv(request: QueryRequest):
     )
 
     try:
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-        return {"answer": response.text.strip()}
+        return {"answer": llm.generate_text(prompt, temperature=0.35)}
     except Exception as e:
-        err = str(e)
-        if "429" in err or "RESOURCE_EXHAUSTED" in err:
-            return {"answer": "Rate limit hit — wait ~10 seconds and retry."}
-        return {"answer": f"Error: {err}"}
+        print(f"All LLM providers failed during CV query: {e}")
+        return {"answer": "The assistant is temporarily unavailable. Please try again in a moment."}

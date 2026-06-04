@@ -12,3 +12,4 @@ langchain-text-splitters
 google-genai
 tavily-python
 numpy
+requests

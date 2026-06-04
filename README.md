@@ -29,7 +29,7 @@ CareerPilot is an agentic career co-pilot for job seekers. It uses the user's CV
 
 - Frontend: Next.js, React, TypeScript, Tailwind CSS
 - Backend: FastAPI, Python, SQLite
-- AI: Gemini API
+- AI: Gemini API with Groq backup for text generation
 - Search: Tavily API
 - RAG: CV parsing, text chunking, embeddings, ChromaDB
 
@@ -60,6 +60,8 @@ Create `careerpilot-backend/.env`:
 
 ```env
 GOOGLE_API_KEY=your_google_api_key
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.1-8b-instant
 TAVILY_API_KEY=your_tavily_api_key
 ```
 
@@ -114,7 +116,7 @@ http://localhost:3000
 - Start from a fresh browser session for the clearest demo.
 - Upload a CV first or build a manual profile.
 - Job Hunter and Assistant intentionally require a prepared profile.
-- If an AI provider rate limit appears, wait briefly and retry.
+- If Gemini reaches its rate limit, CareerPilot can continue with Groq when `GROQ_API_KEY` is configured.
 - Use specific job queries such as `Find me ML internships in Dhaka open this month`.
 
 ## Documentation

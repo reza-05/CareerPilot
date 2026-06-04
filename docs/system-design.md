@@ -51,7 +51,7 @@ For a small student-focused MVP, the largest variable costs are AI generation an
 
 | Bottleneck | Risk | Mitigation |
 | --- | --- | --- |
-| AI provider rate limits | Job explanations or assistant responses may fail | Add retries, fallbacks, caching, and provider monitoring |
+| AI provider rate limits | Job explanations or assistant responses may fail | Use provider failover from Gemini to Groq, then return a controlled unavailable message if both fail |
 | Single shared vector collection | User data can mix in multi-user mode | Namespace chunks per user |
 | Local SQLite | Not suitable for concurrent production traffic | Move to PostgreSQL |
 | Live search latency | Job search can feel slow | Cache common searches and show incremental results |

@@ -39,7 +39,8 @@ flowchart TD
 | RAG service | Text extraction, chunking, embedding, vector search, fit scoring |
 | ChromaDB | Stores semantic CV chunks for retrieval |
 | SQLite | Stores tracked applications and status history |
-| Gemini API | Generates grounded explanations, assistant answers, cover letters, nudges |
+| Gemini API | Primary text-generation provider for grounded explanations, assistant answers, cover letters, nudges |
+| Groq API | Backup text-generation provider when the primary provider is rate-limited or unavailable |
 | Tavily API | Provides live external job search results |
 
 ## Key Design Rule
