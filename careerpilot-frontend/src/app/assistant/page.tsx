@@ -8,14 +8,24 @@ import AIChat from "@/components/AIChat";
 
 const PROFILE_READY_KEY = "careerpilot_profile_ready_session";
 
+const hasPreparedProfile = () => {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(PROFILE_READY_KEY) === "true";
+};
+
 function AssistantContent() {
   const searchParams = useSearchParams();
   const prompt = searchParams.get("prompt") || "";
-  const [profileReady] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem(PROFILE_READY_KEY) === "true";
-  });
+  const [profileReady, setProfileReady] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState({ text: prompt, version: 0 });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setProfileReady(hasPreparedProfile());
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (prompt) {

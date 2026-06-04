@@ -92,7 +92,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   // ==========================================================
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 bg-[#f8f9fa] min-h-[300px]">
+      <div className="flex flex-col items-center justify-center bg-[#f8f9fa] px-4 py-16 sm:py-20 min-h-[300px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E3A8A] mb-4"></div>
         <p className="text-slate-800 font-medium text-base text-center">
           Preparing your personalized career profile...
@@ -103,8 +103,8 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   }
 
   return (
-    <div className={`min-h-[calc(100vh-3.5rem)] w-full bg-[#f8f9fa] px-4 py-10 md:py-14 ${dmSans.className}`}>
-      <div className="max-w-xl mx-auto">
+    <div className={`min-h-[calc(100vh-4rem)] w-full bg-[#f8f9fa] px-3 py-8 sm:px-4 sm:py-10 md:py-14 ${dmSans.className}`}>
+      <div className="mx-auto max-w-lg sm:max-w-xl">
         
         {/* এরর নোটিফিকেশন ব্যানার */}
         {errorNotification && (
@@ -114,8 +114,8 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
         )}
 
         {/* মেইন আপলোডার কার্ড */}
-        <div className="bg-white border border-slate-200/70 rounded-2xl p-6 sm:p-9 shadow-xl shadow-slate-200/60 transition-all">
-          <h2 className="text-[#1E3A8A] font-bold text-2xl tracking-tight text-center mb-2">
+        <div className="bg-white border border-slate-200/70 rounded-2xl p-5 shadow-xl shadow-slate-200/60 transition-all sm:p-8 md:p-9">
+          <h2 className="text-[#1E3A8A] font-bold text-xl tracking-tight text-center mb-2 sm:text-2xl">
             Upload Your Resume to Begin
           </h2>
           <p className="text-slate-500 font-medium text-xs sm:text-sm text-center leading-relaxed mb-6 max-w-sm mx-auto">
@@ -123,7 +123,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
           </p>
 
           {/* ড্রপ-জোন এরিয়া */}
-          <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] bg-slate-50/50 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center transition-all cursor-pointer group relative min-h-[180px]">
+          <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] bg-slate-50/50 rounded-2xl p-5 sm:p-8 flex flex-col items-center justify-center transition-all cursor-pointer group relative min-h-[160px] sm:min-h-[180px]">
             <input 
               type="file" 
               accept=".pdf"

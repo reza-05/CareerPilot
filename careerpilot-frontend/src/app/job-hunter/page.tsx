@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
 import { DM_Sans } from 'next/font/google';
@@ -35,13 +35,21 @@ export default function JobHunter() {
   const [jobs, setJobs] = useState<JobResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [profileReady] = useState(() => hasPreparedProfile());
-  const [statusMessage, setStatusMessage] = useState(() =>
-    hasPreparedProfile() ? "" : PROFILE_REQUIRED_MESSAGE
-  );
+  const [profileReady, setProfileReady] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   
   // Clean string index signature matching tracking states safely
   const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const isReady = hasPreparedProfile();
+      setProfileReady(isReady);
+      setStatusMessage(isReady ? "" : PROFILE_REQUIRED_MESSAGE);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const getSourceName = (url?: string) => {
     if (!url) return "Job Source";
@@ -145,14 +153,14 @@ export default function JobHunter() {
       {/* Soft Premium Top Mesh Layer Tinted to Coordinate Ecosystem */}
       <div className="absolute top-0 left-0 right-0 h-[420px] bg-gradient-to-b from-blue-50/30 via-transparent to-transparent pointer-events-none z-0" />
 
-      <div className="max-w-4xl mx-auto px-4 py-12 sm:py-20 relative z-10">
-        <header className="mb-14 text-center">
+      <div className="relative z-10 mx-auto max-w-4xl px-3 py-8 sm:px-4 sm:py-14 lg:py-20">
+        <header className="mb-10 text-center sm:mb-14">
           
           {/* Solid Deep Blue Hero Heading (Absolutely No Gradients) */}
-          <h1 className="text-[#1E3A8A] font-semibold text-2xl sm:text-4xl md:text-5xl lg:text-6xl tracking-tight text-center mb-4 leading-tight">
+          <h1 className="text-[#1E3A8A] font-semibold text-2xl sm:text-4xl md:text-5xl lg:text-5xl tracking-tight text-center mb-4 leading-tight">
             Navigate Your Next Career Transition
           </h1>
-          <p className="text-slate-500 font-normal text-xs sm:text-sm md:text-base text-center max-w-2xl mx-auto leading-relaxed px-4">
+          <p className="text-slate-500 font-normal text-xs sm:text-sm md:text-base text-center max-w-2xl mx-auto leading-relaxed px-1 sm:px-4">
             Stop endless scrolling. Enter your ideal role, tech stack, or location, and let our intelligent engine surface tailored high-fit opportunities for you.
           </p>
 
@@ -174,9 +182,9 @@ export default function JobHunter() {
           )}
           
           {/* Responsive Command Console Container */}
-          <form onSubmit={huntJobs} className="mt-10 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 sm:p-4 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200">
-            <div className="flex items-center gap-3 w-full px-3">
-              <Briefcase size={22} className="text-slate-400 shrink-0 sm:w-6 sm:h-6" />
+          <form onSubmit={huntJobs} className="mt-8 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 sm:mt-10 sm:p-4 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200">
+            <div className="flex items-center gap-2 w-full px-2 sm:gap-3 sm:px-3">
+              <Briefcase size={20} className="text-slate-400 shrink-0 sm:w-6 sm:h-6" />
               <input 
                 type="text"
                 required
@@ -188,7 +196,7 @@ export default function JobHunter() {
                     ? "e.g., Find me ML internships in Dhaka open this month"
                     : "Upload your CV first to unlock personalized job search"
                 }
-                className="w-full text-base sm:text-xl py-2 px-3 text-slate-800 placeholder-slate-400 font-medium bg-transparent outline-none disabled:cursor-not-allowed disabled:text-slate-400"
+                className="w-full text-sm sm:text-xl py-2 px-2 sm:px-3 text-slate-800 placeholder-slate-400 font-medium bg-transparent outline-none disabled:cursor-not-allowed disabled:text-slate-400"
               />
             </div>
             
@@ -241,7 +249,7 @@ export default function JobHunter() {
             const chatRedirectUrl = `/assistant?prompt=${coverLetterPrompt}`;
 
             return (
-              <div key={i} className="group relative bg-white border border-slate-100 shadow-xl shadow-slate-200/40 rounded-2xl p-5 sm:p-10 mb-6 sm:mb-8 max-w-4xl mx-auto hover:border-[#1E3A8A]/40 transition-all duration-200">
+              <div key={i} className="group relative bg-white border border-slate-100 shadow-xl shadow-slate-200/40 rounded-2xl p-4 sm:p-7 lg:p-10 mb-6 sm:mb-8 max-w-4xl mx-auto hover:border-[#1E3A8A]/40 transition-all duration-200">
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 md:gap-6">
                   <div className="space-y-4 sm:space-y-5 w-full">
                     <div>

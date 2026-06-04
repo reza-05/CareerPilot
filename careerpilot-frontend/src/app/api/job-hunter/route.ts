@@ -46,11 +46,11 @@ export async function POST(req: Request) {
     const parsedJSON = JSON.parse(text);
     return NextResponse.json(parsedJSON);
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Gemini Live Error:", error);
     return NextResponse.json({ 
       error: "Live AI Generation Failed", 
-      details: error?.message || String(error) 
+      details: error instanceof Error ? error.message : String(error) 
     }, { status: 500 });
   }
 }

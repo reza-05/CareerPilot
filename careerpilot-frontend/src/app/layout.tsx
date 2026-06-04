@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import "./globals.css";
 
@@ -6,6 +7,13 @@ export const metadata: Metadata = {
   title: "CareerPilot Dev Engine",
   description: "AI-Powered Hackathon Job Hunting Suite",
 };
+
+const navItems = [
+  { href: "/", label: "CV", icon: "/brand/cv.png" },
+  { href: "/job-hunter", label: "Jobs", icon: "/brand/job.png" },
+  { href: "/assistant", label: "Assistant", shortLabel: "AI" },
+  { href: "/tracker", label: "Tracker", icon: "/brand/tracker.png" },
+];
 
 export default function RootLayout({
   children,
@@ -17,31 +25,44 @@ export default function RootLayout({
       <body className="bg-[#f8f9fa] text-slate-900 antialiased min-h-screen flex flex-col">
         
         {/* Persistent Premium Navigation Shell */}
-        <nav className="w-full bg-slate-950 border-b border-slate-900 sticky top-0 z-50 backdrop-blur-md bg-opacity-80">
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
+        <nav className="sticky top-0 z-50 w-full border-b border-blue-100 bg-white/90 shadow-sm shadow-slate-200/70 backdrop-blur-md">
+          <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-2.5 min-[420px]:gap-3 sm:px-6">
             
             {/* Logo Emblem Link */}
-            <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-tight text-sm hover:opacity-90 transition">
-              <span className="h-5 w-5 rounded bg-white flex items-center justify-center text-slate-950 font-black text-xs">
-                C
-              </span>
-              <span className="hidden sm:inline">CareerPilot</span>
+            <Link href="/" className="flex shrink-0 items-center transition hover:opacity-90" aria-label="CareerPilot home">
+              <Image
+                src="/brand/logo.png"
+                alt="CareerPilot"
+                width={240}
+                height={90}
+                priority
+                className="h-8 w-auto min-[420px]:h-9 sm:h-12 md:h-14"
+              />
             </Link>
 
             {/* View Mode Switching Links */}
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto bg-slate-900/60 p-1 rounded-xl border border-slate-800/40">
-              {[
-                { href: "/", label: "CV" },
-                { href: "/job-hunter", label: "Jobs" },
-                { href: "/assistant", label: "Assistant" },
-                { href: "/tracker", label: "Tracker" },
-              ].map((item) => (
+            <div className="flex min-w-0 items-center gap-0.5 rounded-2xl border border-blue-100 bg-[#EFF6FF] p-1 shadow-inner shadow-blue-100/60 min-[420px]:gap-1 min-[420px]:p-1.5">
+              {navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="shrink-0 text-xs font-medium px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 transition"
+                  className="group flex shrink-0 items-center gap-1 rounded-xl px-1.5 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3A8A] hover:shadow-sm min-[420px]:gap-1.5 min-[420px]:px-2 min-[420px]:py-2 min-[420px]:text-xs sm:gap-2 sm:px-3.5 sm:text-sm"
                 >
-                  {item.label}
+                  {item.icon ? (
+                    <Image
+                      src={item.icon}
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="h-3.5 w-3.5 object-contain opacity-80 transition group-hover:opacity-100 min-[420px]:h-4 min-[420px]:w-4 sm:h-5 sm:w-5"
+                    />
+                  ) : (
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-md bg-[#1E3A8A] text-[7px] font-black text-white shadow-sm min-[420px]:h-4 min-[420px]:w-4 min-[420px]:text-[8px] sm:h-5 sm:w-5 sm:text-[9px]">
+                      AI
+                    </span>
+                  )}
+                  <span className="sm:hidden">{item.shortLabel || item.label}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
                 </Link>
               ))}
             </div>

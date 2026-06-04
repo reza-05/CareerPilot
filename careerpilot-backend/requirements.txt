@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+pydantic-settings
+sqlalchemy
+chromadb
+pypdf
+python-docx
+langchain-text-splitters
+google-genai
+tavily-python
+numpy

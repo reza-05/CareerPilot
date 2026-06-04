@@ -14,4 +14,7 @@ node_modules/
 .env
 *.env
 chroma_db/
+careerpilot-backend/chroma_db/
+careerpilot-backend/careerpilot.db
+careerpilot-backend/storage/temp_cvs/
 .DS_Store

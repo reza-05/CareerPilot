@@ -57,16 +57,7 @@ export default function TrackerDashboard() {
   const [currentDate] = useState(new Date());
   const goalsHydratedRef = useRef(false);
 
-  const [weeklyGoals, setWeeklyGoals] = useState<MilestoneGoal[]>(() => {
-    if (typeof window === "undefined") return [];
-    const savedGoals = window.localStorage.getItem(GOALS_STORAGE_KEY);
-    if (!savedGoals) return [];
-    try {
-      return JSON.parse(savedGoals);
-    } catch {
-      return [];
-    }
-  });
+  const [weeklyGoals, setWeeklyGoals] = useState<MilestoneGoal[]>([]);
 
   const fetchPipelineData = async () => {
     try {
@@ -88,8 +79,16 @@ export default function TrackerDashboard() {
   };
 
   useEffect(() => {
-    goalsHydratedRef.current = true;
     const timer = window.setTimeout(() => {
+      const savedGoals = window.localStorage.getItem(GOALS_STORAGE_KEY);
+      if (savedGoals) {
+        try {
+          setWeeklyGoals(JSON.parse(savedGoals));
+        } catch {
+          setWeeklyGoals([]);
+        }
+      }
+      goalsHydratedRef.current = true;
       fetchPipelineData();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -292,14 +291,14 @@ export default function TrackerDashboard() {
     <div className={`min-h-screen bg-[#f8f9fa] text-slate-900 antialiased ${dmSans.className}`}>
       <div className="absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-blue-50 via-white to-transparent pointer-events-none" />
 
-      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-        <header className="mb-8 rounded-2xl border border-blue-100 bg-white p-6 shadow-xl shadow-slate-200/60">
+      <div className="relative mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
+        <header className="mb-6 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl shadow-slate-200/60 sm:mb-8 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#1E3A8A]">
                 CareerPilot Tracker
               </p>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
                 Application Tracker
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
@@ -307,7 +306,7 @@ export default function TrackerDashboard() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-3 lg:min-w-[360px]">
+            <div className="grid grid-cols-3 gap-2 min-[520px]:gap-3 lg:min-w-[360px]">
               <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tracked</p>
                 <p className="mt-1 text-2xl font-bold text-[#1E3A8A]">{jobs.length}</p>
@@ -341,8 +340,8 @@ export default function TrackerDashboard() {
           )}
         </header>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
-          <main className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
+          <main className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {KANBAN_COLUMNS.map((col) => {
               const columnJobs = jobs.filter((j) => j.status === col);
 
@@ -351,7 +350,7 @@ export default function TrackerDashboard() {
                   key={col}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col)}
-                  className="flex min-h-[520px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60"
+                  className="flex min-h-[340px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60 sm:min-h-[420px] xl:min-h-[520px]"
                 >
                   <div className="mb-4 border-b border-slate-100 pb-3">
                     <div className="flex items-center justify-between">

@@ -79,7 +79,7 @@ export default function AIChat({
         </div>
       </div>
 
-      <div className="h-[360px] overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5 md:h-[420px] lg:h-[460px]">
+      <div className="h-[min(58vh,420px)] min-h-[340px] overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5 md:h-[420px] lg:h-[460px]">
         {messages.length === 0 && !loading && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1E3A8A]">
