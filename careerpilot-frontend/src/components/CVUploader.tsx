@@ -41,14 +41,14 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
       const data = await response.json();
 
       if (response.ok && data?.success) {
-        localStorage.setItem("careerpilot_profile_ready", "true");
+        sessionStorage.setItem("careerpilot_profile_ready_session", "true");
         onUploadSuccess("Resume Vectorized Successfully");
         router.push('/job-hunter');
       } else {
-        setErrorNotification(data?.detail || "Vector database synchronization failed.");
+        setErrorNotification(data?.detail || "We could not prepare your resume right now. Please try again.");
       }
-    } catch (error: any) {
-      setErrorNotification("Internal Server Error during data vector processing.");
+    } catch {
+      setErrorNotification("We could not prepare your resume right now. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -59,8 +59,9 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
       <div className="flex flex-col items-center justify-center py-20 bg-[#f8f9fa] min-h-[300px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E3A8A] mb-4"></div>
         <p className="text-slate-800 font-medium text-base text-center">
-          AI Agent is compiling your skills and preparing your vector tracking pipeline...
+          Preparing your personalized career profile...
         </p>
+        <p className="text-slate-400 text-xs mt-1 text-center">This should only take a moment.</p>
       </div>
     );
   }

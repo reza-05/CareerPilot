@@ -3,6 +3,12 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { DM_Sans } from 'next/font/google';
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+});
 
 interface CVUploaderProps {
   onUploadSuccess?: (msg: string) => void;
@@ -56,24 +62,24 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
 
       // রেসপন্স স্ট্যাটাস কোড এবং সাকসেস ফ্ল্যাগ ভ্যালিডেশন
       if (response.ok && data?.success) {
-        localStorage.setItem("careerpilot_profile_ready", "true");
+        sessionStorage.setItem("careerpilot_profile_ready_session", "true");
         if (onUploadSuccess) {
           onUploadSuccess("Resume Vectorized Successfully");
         }
         // সাকসেসফুলি ক্রোমাডিবি-তে জমা হলে সরাসরি জব হান্টারে রিডাইরেক্ট
         router.push('/job-hunter');
       } else {
-        const rawError = data?.error || data?.detail || "Vector database synchronization failed.";
+        const rawError = data?.error || data?.detail || "We could not prepare your resume right now.";
         const friendlyError = String(rawError).includes("429") || String(rawError).includes("RESOURCE_EXHAUSTED")
-          ? "Gemini quota was busy. Local fallback is now enabled — please click Process Resume again."
+          ? "The profile service is currently busy. Please click Process Resume again in a moment."
           : rawError;
         setErrorNotification(friendlyError);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upload workflow captured an exception:", error);
-      const rawError = error?.message || "Internal Server Error during data vector processing initialization.";
+      const rawError = error instanceof Error ? error.message : "We could not prepare your resume right now.";
       const friendlyError = String(rawError).includes("429") || String(rawError).includes("RESOURCE_EXHAUSTED")
-        ? "Gemini quota was busy. Local fallback is now enabled — please click Process Resume again."
+        ? "The profile service is currently busy. Please click Process Resume again in a moment."
         : rawError;
       setErrorNotification(friendlyError);
     } finally {
@@ -89,15 +95,15 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
       <div className="flex flex-col items-center justify-center py-20 bg-[#f8f9fa] min-h-[300px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E3A8A] mb-4"></div>
         <p className="text-slate-800 font-medium text-base text-center">
-          AI Agent is compiling your skills and preparing your vector tracking pipeline...
+          Preparing your personalized career profile...
         </p>
-        <p className="text-slate-400 text-xs mt-1 text-center">Please wait.</p>
+        <p className="text-slate-400 text-xs mt-1 text-center">This should only take a moment.</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-[#f8f9fa] py-8 px-4 font-sans">
+    <div className={`min-h-[calc(100vh-3.5rem)] w-full bg-[#f8f9fa] px-4 py-10 md:py-14 ${dmSans.className}`}>
       <div className="max-w-xl mx-auto">
         
         {/* এরর নোটিফিকেশন ব্যানার */}
@@ -108,16 +114,16 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
         )}
 
         {/* মেইন আপলোডার কার্ড */}
-        <div className="bg-white border border-slate-200/60 rounded-2xl p-6 sm:p-10 shadow-sm transition-all">
-          <h2 className="text-[#1E3A8A] font-semibold text-2xl tracking-tight text-center mb-2">
+        <div className="bg-white border border-slate-200/70 rounded-2xl p-6 sm:p-9 shadow-xl shadow-slate-200/60 transition-all">
+          <h2 className="text-[#1E3A8A] font-bold text-2xl tracking-tight text-center mb-2">
             Upload Your Resume to Begin
           </h2>
-          <p className="text-slate-500 font-normal text-xs sm:text-sm text-center leading-relaxed mb-6 max-w-sm mx-auto">
+          <p className="text-slate-500 font-medium text-xs sm:text-sm text-center leading-relaxed mb-6 max-w-sm mx-auto">
             Our AI engine will parse your skills and experience to find high-match opportunities instantly.
           </p>
 
           {/* ড্রপ-জোন এরিয়া */}
-          <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] bg-slate-50/50 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center transition-all cursor-pointer group relative">
+          <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] bg-slate-50/50 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center transition-all cursor-pointer group relative min-h-[180px]">
             <input 
               type="file" 
               accept=".pdf"
@@ -151,7 +157,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
           {/* ম্যানুয়াল সিভি মেকিং লিংক */}
           <div className="mt-5 pt-4 border-t border-slate-100 text-center">
             <p className="text-slate-500 text-xs sm:text-sm">
-              Don't have a resume? 
+              Don&apos;t have a resume? 
               <Link href="/cv-builder" className="text-[#1E3A8A] hover:underline font-semibold ml-1">
                 Create your CV manually here
               </Link>

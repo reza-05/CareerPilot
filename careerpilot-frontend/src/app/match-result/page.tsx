@@ -3,25 +3,40 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, AlertCircle, FileText } from "lucide-react";
 
+interface JobAnalysis {
+  matchPercentage: number;
+  matchingReason: string;
+  missingSkills?: string[];
+  coverLetter: string;
+}
+
+function readStoredAnalysis(): JobAnalysis | null {
+  if (typeof window === "undefined") return null;
+  const data = window.localStorage.getItem("jobAnalysis");
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as JobAnalysis;
+  } catch {
+    return null;
+  }
+}
+
 export default function MatchResultPage() {
   const router = useRouter();
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis] = useState<JobAnalysis | null>(() => readStoredAnalysis());
 
   useEffect(() => {
-    const data = localStorage.getItem("jobAnalysis");
-    if (!data) {
+    if (!analysis) {
       router.push("/cv-builder");
-    } else {
-      setAnalysis(JSON.parse(data));
     }
-  }, [router]);
+  }, [analysis, router]);
 
   if (!analysis) return (
     <div className="min-h-screen flex items-center justify-center text-slate-600">Loading analysis...</div>
   );
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] py-16 px-4 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-12 lg:py-16 max-w-4xl mx-auto">
       {/* Back Button with dark contrast */}
       <button 
         onClick={() => router.push("/cv-builder")} 
@@ -31,18 +46,18 @@ export default function MatchResultPage() {
       </button>
       
       {/* Headings in Slate-900 for high readability */}
-      <h1 className="text-4xl font-extrabold mb-6 text-slate-900">
+      <h1 className="text-3xl sm:text-4xl font-extrabold mb-6 text-slate-900">
         Match Score: {analysis.matchPercentage}%
       </h1>
       
       {/* Reasoning Card */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm mb-8 border border-slate-100">
+      <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm mb-6 sm:mb-8 border border-slate-100">
         <h2 className="text-xl font-bold mb-4 text-slate-900">Reasoning</h2>
         <p className="text-slate-700 leading-relaxed">{analysis.matchingReason}</p>
       </div>
 
       {/* Missing Skills Card */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm mb-8 border border-slate-100">
+      <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm mb-6 sm:mb-8 border border-slate-100">
         <h2 className="text-xl font-bold text-red-600 mb-4 flex items-center">
             <AlertCircle className="mr-2"/> Missing Skills
         </h2>
@@ -54,11 +69,11 @@ export default function MatchResultPage() {
       </div>
 
       {/* Cover Letter Card */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm mb-8 border border-slate-100">
+      <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm mb-6 sm:mb-8 border border-slate-100">
         <h2 className="text-xl font-bold mb-4 flex items-center text-slate-900">
             <FileText className="mr-2"/> Tailored Cover Letter
         </h2>
-        <div className="whitespace-pre-line bg-slate-50 p-6 rounded-xl border border-slate-200 text-slate-700">
+        <div className="whitespace-pre-line break-words bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-200 text-sm sm:text-base text-slate-700">
             {analysis.coverLetter}
         </div>
       </div>

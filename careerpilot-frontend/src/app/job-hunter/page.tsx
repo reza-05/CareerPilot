@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
 import { DM_Sans } from 'next/font/google';
@@ -9,20 +9,39 @@ const dmSans = DM_Sans({
   weight: ['300', '400', '500', '600', '700'],
 });
 
+const PROFILE_REQUIRED_MESSAGE =
+  "Please upload your CV or complete your profile first to receive suitable job recommendations and fit scores.";
+const PROFILE_READY_KEY = "careerpilot_profile_ready_session";
+
+interface JobResult {
+  title: string;
+  url: string;
+  company?: string;
+  location?: string;
+  salaryRange?: string;
+  applicationDeadline?: string;
+  deadlineDate?: string;
+  matchPercent?: number;
+  matchReason?: string;
+}
+
+const hasPreparedProfile = () => {
+  if (typeof window === "undefined") return false;
+  return window.sessionStorage.getItem(PROFILE_READY_KEY) === "true";
+};
+
 export default function JobHunter() {
   // Maintaining a clean empty initial state on page mount
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<JobResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusMessage, setStatusMessage] = useState("");
-  const [profileReady, setProfileReady] = useState(false);
+  const [profileReady] = useState(() => hasPreparedProfile());
+  const [statusMessage, setStatusMessage] = useState(() =>
+    hasPreparedProfile() ? "" : PROFILE_REQUIRED_MESSAGE
+  );
   
   // Clean string index signature matching tracking states safely
   const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>({});
-
-  useEffect(() => {
-    setProfileReady(localStorage.getItem("careerpilot_profile_ready") === "true");
-  }, []);
 
   const getSourceName = (url?: string) => {
     if (!url) return "Job Source";
@@ -44,7 +63,7 @@ export default function JobHunter() {
     if (!targetQuery.trim()) return;
     if (!profileReady) {
       setJobs([]);
-      setStatusMessage("Please upload your CV or complete your profile before searching for suitable jobs.");
+      setStatusMessage(PROFILE_REQUIRED_MESSAGE);
       return;
     }
 
@@ -69,7 +88,7 @@ export default function JobHunter() {
     } catch (e) {
       console.error("Fetch failed", e);
       setJobs([]);
-      setStatusMessage("Search failed. Please check that the backend is running.");
+      setStatusMessage("Search failed. Please make sure the app services are running and try again.");
     } finally {
       setLoading(false);
     }
@@ -80,7 +99,13 @@ export default function JobHunter() {
     await executeSearch(searchQuery);
   };
 
-  const trackJobOnKanban = async (jobTitle: string, rawCompany: string, jobUrl: string) => {
+  const trackJobOnKanban = async (
+    jobTitle: string,
+    rawCompany: string,
+    jobUrl: string,
+    applicationDeadline?: string,
+    deadlineDate?: string
+  ) => {
     const companyName = rawCompany || "Target Company";
     
     setTrackingStates(prev => ({ ...prev, [jobUrl]: "saving" }));
@@ -94,6 +119,9 @@ export default function JobHunter() {
         body: JSON.stringify({
           role: jobTitle,
           company: companyName,
+          application_deadline: applicationDeadline || "Open until filled",
+          deadline_date: deadlineDate || null,
+          source_url: jobUrl,
         }),
       });
 
@@ -127,35 +155,12 @@ export default function JobHunter() {
           <p className="text-slate-500 font-normal text-xs sm:text-sm md:text-base text-center max-w-2xl mx-auto leading-relaxed px-4">
             Stop endless scrolling. Enter your ideal role, tech stack, or location, and let our intelligent engine surface tailored high-fit opportunities for you.
           </p>
-          
-          {/* Responsive Command Console Container */}
-          <form onSubmit={huntJobs} className="mt-10 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 sm:p-4 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200">
-            <div className="flex items-center gap-3 w-full px-3">
-              <Briefcase size={22} className="text-slate-400 shrink-0 sm:w-6 sm:h-6" />
-              <input 
-                type="text"
-                required
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="e.g., Find me ML internships in Dhaka open this month"
-                className="w-full text-base sm:text-xl py-2 px-3 text-slate-800 placeholder-slate-400 font-medium bg-transparent outline-none"
-              />
-            </div>
-            
-            <button 
-              type="submit"
-              disabled={loading || !searchQuery.trim() || !profileReady}
-              className="bg-[#1E3A8A] hover:bg-[#1D4ED8] text-white text-sm sm:text-lg font-bold px-5 sm:px-8 py-3 sm:py-4 rounded-xl shadow-md transition-all text-center w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 active:scale-[0.99] disabled:bg-slate-100 disabled:text-slate-400"
-            >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : "Search Opportunities"}
-            </button>
-          </form>
 
           {!profileReady && (
-            <div className="mt-6 rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-left shadow-sm">
+            <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-left shadow-sm">
               <p className="text-sm font-bold text-[#1E3A8A]">Profile required before job matching</p>
               <p className="mt-1 text-sm leading-6 text-slate-600">
-                Please upload your CV or complete your profile first. CareerPilot uses your profile to calculate fit scores and recommend suitable opportunities.
+                {PROFILE_REQUIRED_MESSAGE} CareerPilot uses your profile as the source of truth before searching and ranking opportunities.
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <Link href="/" className="rounded-lg bg-[#1E3A8A] px-4 py-2 text-center text-sm font-bold text-white hover:bg-[#1D4ED8]">
@@ -167,6 +172,34 @@ export default function JobHunter() {
               </div>
             </div>
           )}
+          
+          {/* Responsive Command Console Container */}
+          <form onSubmit={huntJobs} className="mt-10 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 sm:p-4 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200">
+            <div className="flex items-center gap-3 w-full px-3">
+              <Briefcase size={22} className="text-slate-400 shrink-0 sm:w-6 sm:h-6" />
+              <input 
+                type="text"
+                required
+                disabled={!profileReady}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={
+                  profileReady
+                    ? "e.g., Find me ML internships in Dhaka open this month"
+                    : "Upload your CV first to unlock personalized job search"
+                }
+                className="w-full text-base sm:text-xl py-2 px-3 text-slate-800 placeholder-slate-400 font-medium bg-transparent outline-none disabled:cursor-not-allowed disabled:text-slate-400"
+              />
+            </div>
+            
+            <button 
+              type="submit"
+              disabled={loading || !searchQuery.trim() || !profileReady}
+              className="bg-[#1E3A8A] hover:bg-[#1D4ED8] text-white text-sm sm:text-lg font-bold px-5 sm:px-8 py-3 sm:py-4 rounded-xl shadow-md transition-all text-center w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 active:scale-[0.99] disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              {loading ? <Loader2 className="animate-spin" size={18} /> : "Search Opportunities"}
+            </button>
+          </form>
 
           {/* Interactive Minimalist Blue Suggestion Pills */}
           <div className="flex flex-wrap justify-center items-center gap-2 mt-6 sm:mt-8 max-w-2xl mx-auto px-2">
@@ -272,7 +305,15 @@ export default function JobHunter() {
 
                   <button
                     disabled={currentStatus === "saving" || currentStatus === "tracked"}
-                    onClick={() => trackJobOnKanban(job.title, displayCompany, job.url)}
+                    onClick={() =>
+                      trackJobOnKanban(
+                        job.title,
+                        displayCompany,
+                        job.url,
+                        job.applicationDeadline,
+                        job.deadlineDate
+                      )
+                    }
                     className={`w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold rounded-xl text-center border transition-all flex items-center justify-center gap-2 ${
                       currentStatus === "tracked"
                         ? "bg-blue-50 text-blue-700 border-blue-200/60 cursor-not-allowed"

@@ -3,30 +3,81 @@
 import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import AIChat from "@/components/AIChat";
+
+const PROFILE_READY_KEY = "careerpilot_profile_ready_session";
 
 function AssistantContent() {
   const searchParams = useSearchParams();
   const prompt = searchParams.get("prompt") || "";
+  const [profileReady] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem(PROFILE_READY_KEY) === "true";
+  });
   const [selectedPrompt, setSelectedPrompt] = useState({ text: prompt, version: 0 });
 
   useEffect(() => {
     if (prompt) {
-      setSelectedPrompt((current) => ({
-        text: prompt,
-        version: current.version + 1,
-      }));
+      const timer = window.setTimeout(() => {
+        setSelectedPrompt((current) => ({
+          text: prompt,
+          version: current.version + 1,
+        }));
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [prompt]);
 
+  if (!profileReady) {
+    return (
+      <main className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 text-slate-900">
+        <div className="mx-auto max-w-5xl">
+          <header className="mb-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#1E3A8A]">
+              CareerPilot Assistant
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
+              Complete your profile to use the assistant
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
+              A completed profile is required before using the CareerPilot Assistant. Please upload your CV or build your profile first, because every recommendation, skill-gap analysis, roadmap, and cover letter is grounded in your verified CV information.
+            </p>
+          </header>
+
+          <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-xl shadow-slate-200/70 sm:p-6">
+            <p className="text-sm font-bold text-[#1E3A8A]">Profile required</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+              CareerPilot does not generate assistant responses without your CV context. This keeps the guidance specific to your actual education, experience, skills, and projects.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/"
+                className="rounded-xl bg-[#1E3A8A] px-5 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-[#1D4ED8]"
+              >
+                Upload CV
+              </Link>
+              <Link
+                href="/cv-builder"
+                className="rounded-xl border border-blue-200 bg-white px-5 py-3 text-center text-sm font-bold text-[#1E3A8A] transition hover:bg-blue-50"
+              >
+                Build Profile Manually
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#f8f9fa] px-4 py-10 text-slate-900">
+    <main className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 text-slate-900">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8">
           <p className="text-xs font-bold uppercase tracking-widest text-[#1E3A8A]">
             CareerPilot Assistant
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 md:text-5xl">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl md:text-5xl">
             Ask questions grounded in your CV
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 md:text-base">
@@ -34,8 +85,8 @@ function AssistantContent() {
           </p>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
+          <section className="min-w-0 rounded-2xl border border-blue-100 bg-[#F8FBFF] p-3 shadow-xl shadow-slate-200/70 sm:p-4 md:p-6">
             <AIChat initialPrompt={selectedPrompt.text} promptVersion={selectedPrompt.version} />
           </section>
 

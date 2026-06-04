@@ -4,10 +4,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from google import genai
 from google.genai import types
 from tavily import TavilyClient
-from sqlalchemy import Column, Integer, String, create_engine
+from sqlalchemy import Column, Integer, String, create_engine, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
+from typing import Optional
 from app.services.rag_service import CVVectorEngine
 import shutil, os, json, re
 
@@ -86,6 +87,40 @@ def extract_job_metadata(job_description: str, query: str) -> dict:
         "applicationDeadline": deadline_match.group(1).strip() if deadline_match else "Open until filled",
         "location": ", ".join(dict.fromkeys(found_locations[:3])) if found_locations else "Not Specified",
     }
+
+def normalize_deadline_date(deadline_text: str) -> Optional[str]:
+    if not deadline_text:
+        return None
+
+    cleaned = re.sub(
+        r"(?i)\b(deadline|apply by|last date)\b[:\s-]*",
+        "",
+        deadline_text,
+    ).strip()
+    if not cleaned or re.search(r"(?i)open until filled|not specified|n/a", cleaned):
+        return None
+
+    current_year = datetime.utcnow().year
+    date_patterns = [
+        "%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y",
+        "%d %B %Y", "%d %b %Y", "%d/%m/%Y", "%d-%m-%Y",
+        "%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y",
+    ]
+
+    for pattern in date_patterns:
+        try:
+            return datetime.strptime(cleaned, pattern).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    for pattern in ["%B %d", "%b %d", "%d %B", "%d %b"]:
+        try:
+            parsed = datetime.strptime(cleaned, pattern)
+            return parsed.replace(year=current_year).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+
+    return None
 
 @router.post("/api/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):
@@ -176,6 +211,7 @@ async def search_jobs(request: JobRequest):
             item["matchReason"] = match_reason
             item["salaryRange"] = salary_range
             item["applicationDeadline"] = deadline
+            item["deadlineDate"] = normalize_deadline_date(deadline)
             item["location"] = location
             formatted.append(item)
 
@@ -221,12 +257,35 @@ class JobTracker(Base):
     company = Column(String, nullable=False)
     status = Column(String, default="Applied")
     date_tracked = Column(String, default=lambda: datetime.utcnow().strftime("%Y-%m-%d"))
+    application_deadline = Column(String, nullable=True)
+    deadline_date = Column(String, nullable=True)
+    source_url = Column(String, nullable=True)
 
 Base.metadata.create_all(bind=engine)
+
+def ensure_tracker_columns():
+    inspector = inspect(engine)
+    existing_columns = {column["name"] for column in inspector.get_columns("job_tracker")}
+    columns_to_add = {
+        "application_deadline": "VARCHAR",
+        "deadline_date": "VARCHAR",
+        "source_url": "VARCHAR",
+    }
+    with engine.begin() as connection:
+        for column_name, column_type in columns_to_add.items():
+            if column_name not in existing_columns:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE job_tracker ADD COLUMN {column_name} {column_type}"
+                )
+
+ensure_tracker_columns()
 
 class TrackerCreate(BaseModel):
     role: str
     company: str
+    application_deadline: Optional[str] = None
+    deadline_date: Optional[str] = None
+    source_url: Optional[str] = None
 
 class StatusUpdate(BaseModel):
     status: str
@@ -240,7 +299,14 @@ def get_db():
 
 @router.post("/api/tracker")
 def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db)):
-    db_entry = JobTracker(role=job.role, company=job.company, status="Applied")
+    db_entry = JobTracker(
+        role=job.role,
+        company=job.company,
+        status="Applied",
+        application_deadline=job.application_deadline,
+        deadline_date=job.deadline_date or normalize_deadline_date(job.application_deadline or ""),
+        source_url=job.source_url,
+    )
     db.add(db_entry)
     db.commit()
     db.refresh(db_entry)
@@ -256,6 +322,15 @@ def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_
     if not db_job:
         raise HTTPException(status_code=404, detail="Entry not found")
     db_job.status = payload.status
+    db.commit()
+    return {"status": "success"}
+
+@router.delete("/api/tracker/{id}")
+def delete_tracked_job(id: int, db: Session = Depends(get_db)):
+    db_job = db.query(JobTracker).filter(JobTracker.id == id).first()
+    if not db_job:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    db.delete(db_job)
     db.commit()
     return {"status": "success"}
 

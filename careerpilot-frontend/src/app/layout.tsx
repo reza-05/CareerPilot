@@ -13,23 +13,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
+    <html lang="en">
+      <body className="bg-[#f8f9fa] text-slate-900 antialiased min-h-screen flex flex-col">
         
         {/* Persistent Premium Navigation Shell */}
         <nav className="w-full bg-slate-950 border-b border-slate-900 sticky top-0 z-50 backdrop-blur-md bg-opacity-80">
-          <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-3">
             
             {/* Logo Emblem Link */}
-            <Link href="/" className="flex items-center gap-2 font-bold tracking-tight text-sm hover:opacity-90 transition">
+            <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-tight text-sm hover:opacity-90 transition">
               <span className="h-5 w-5 rounded bg-white flex items-center justify-center text-slate-950 font-black text-xs">
                 C
               </span>
-              <span>CareerPilot</span>
+              <span className="hidden sm:inline">CareerPilot</span>
             </Link>
 
             {/* View Mode Switching Links */}
-            <div className="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-800/40">
+            <div className="flex min-w-0 items-center gap-1 overflow-x-auto bg-slate-900/60 p-1 rounded-xl border border-slate-800/40">
               {[
                 { href: "/", label: "CV" },
                 { href: "/job-hunter", label: "Jobs" },
@@ -39,7 +39,7 @@ export default function RootLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 transition"
+                  className="shrink-0 text-xs font-medium px-2.5 sm:px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-100 transition"
                 >
                   {item.label}
                 </Link>

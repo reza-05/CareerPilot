@@ -50,20 +50,20 @@ export default function AIChat({
 
       const data = await response.json();
       
-      // 4. Extract content cleanly from whichever key your backend uses
+      // Extract content cleanly from whichever key the assistant service returns.
       const replyContent = data.response || data.answer || data.message || (typeof data === "string" ? data : JSON.stringify(data));
       
       setMessages((prev) => [...prev, { role: "ai", content: replyContent }]);
-    } catch (error) {
-      setMessages((prev) => [...prev, { role: "ai", content: "AI service error. Could not connect to backend engine." }]);
+    } catch {
+      setMessages((prev) => [...prev, { role: "ai", content: "The assistant is temporarily unavailable. Please try again in a moment." }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+    <div className="w-full overflow-hidden rounded-2xl border border-blue-200/80 bg-[#F7FAFF] shadow-2xl shadow-blue-100/80 ring-1 ring-white">
+      <div className="flex flex-col gap-3 border-b border-blue-100 bg-[#EEF4FF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1E3A8A] text-white shadow-sm">
             <Bot size={20} />
@@ -73,13 +73,13 @@ export default function AIChat({
             <p className="text-xs font-medium text-slate-500">CV-grounded career guidance</p>
           </div>
         </div>
-        <div className="hidden items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-[#1E3A8A] sm:flex">
+        <div className="hidden items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-[#1E3A8A] shadow-sm sm:flex">
           <Sparkles size={13} />
           RAG Enabled
         </div>
       </div>
 
-      <div className="h-[280px] overflow-y-auto bg-gradient-to-b from-white to-slate-50/60 p-5 md:h-[300px]">
+      <div className="h-[360px] overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5 md:h-[420px] lg:h-[460px]">
         {messages.length === 0 && !loading && (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1E3A8A]">
@@ -102,12 +102,12 @@ export default function AIChat({
                     <Bot size={16} />
                   </div>
                 )}
-                <div className={`max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col`}>
+                <div className={`max-w-[82%] sm:max-w-[78%] ${isUser ? "items-end" : "items-start"} flex min-w-0 flex-col`}>
                   <span className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     {isUser ? "You" : "Assistant"}
                   </span>
                   <p
-                    className={`whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
+                    className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
                       isUser
                         ? "rounded-tr-sm bg-[#1E3A8A] text-white"
                         : "rounded-tl-sm border border-slate-200 bg-white text-slate-700"
@@ -139,8 +139,8 @@ export default function AIChat({
         </div>
       </div>
 
-      <div className="border-t border-slate-100 bg-white p-4">
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-inner focus-within:border-[#1E3A8A]/50 focus-within:bg-white">
+      <div className="border-t border-blue-100 bg-[#EEF4FF] p-3 sm:p-4">
+        <div className="flex items-center gap-2 rounded-2xl border border-blue-200 bg-white p-2 shadow-lg shadow-blue-100/60 focus-within:border-[#1E3A8A]/60 sm:gap-3">
           <Input
             value={input}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInput(e.target.value)}

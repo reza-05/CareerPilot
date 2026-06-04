@@ -1,6 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DM_Sans } from "next/font/google";
+import {
+  Briefcase,
+  CalendarDays,
+  Check,
+  GripVertical,
+  Plus,
+  Sparkles,
+  Target,
+  Trash2,
+} from "lucide-react";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 interface TrackedJob {
   id: number;
@@ -8,6 +24,9 @@ interface TrackedJob {
   company: string;
   status: string;
   date_tracked: string;
+  application_deadline?: string | null;
+  deadline_date?: string | null;
+  source_url?: string | null;
 }
 
 interface MilestoneGoal {
@@ -17,31 +36,37 @@ interface MilestoneGoal {
 }
 
 const KANBAN_COLUMNS = ["Applied", "Interviewing", "Offer", "Rejected"];
+const GOALS_STORAGE_KEY = "careerpilot_tracker_goals";
+
+const COLUMN_COPY: Record<string, string> = {
+  Applied: "Newly tracked opportunities",
+  Interviewing: "Active interview loops",
+  Offer: "Final decisions and offers",
+  Rejected: "Closed or declined roles",
+};
 
 export default function TrackerDashboard() {
   const [jobs, setJobs] = useState<TrackedJob[]>([]);
   const [roleInput, setRoleInput] = useState("");
   const [companyInput, setCompanyInput] = useState("");
-  const [aiNudge, setAiNudge] = useState("Analyzing pipeline telemetry...");
+  const [deadlineInput, setDeadlineInput] = useState("");
+  const [goalInput, setGoalInput] = useState("");
+  const [aiNudge, setAiNudge] = useState("Analyzing application progress...");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Calendar configuration parameters states
+  const [notice, setNotice] = useState("");
   const [currentDate] = useState(new Date());
-  
-  // Static mock application tracking map deadlines representing incoming alerts for judges
-  const mockDeadlines: { [key: number]: { role: string; type: string } } = {
-    4: { role: "Frontend Dev", type: "Technical Interview" },
-    12: { role: "Software Engineer I", type: "Take-home Assessment" },
-    19: { role: "Backend Engineer", type: "System Design Review" },
-    27: { role: "Fullstack Dev", type: "Offer Decision Deadline" }
-  };
+  const goalsHydratedRef = useRef(false);
 
-  const [weeklyGoals, setWeeklyGoals] = useState<MilestoneGoal[]>([
-    { id: 1, text: "Apply to 5 high-alignment engineering roles", completed: false },
-    { id: 2, text: "Review Data Structures & Algorithms core patterns", completed: false },
-    { id: 3, text: "Track 2 new jobs into the active pipeline", completed: false },
-    { id: 4, text: "Follow up on pending interview loops", completed: false },
-  ]);
+  const [weeklyGoals, setWeeklyGoals] = useState<MilestoneGoal[]>(() => {
+    if (typeof window === "undefined") return [];
+    const savedGoals = window.localStorage.getItem(GOALS_STORAGE_KEY);
+    if (!savedGoals) return [];
+    try {
+      return JSON.parse(savedGoals);
+    } catch {
+      return [];
+    }
+  });
 
   const fetchPipelineData = async () => {
     try {
@@ -57,35 +82,74 @@ export default function TrackerDashboard() {
         setAiNudge(nudgeData.nudge);
       }
     } catch (err) {
-      console.error("Failed to sync tracker telemetry:", err);
+      console.error("Failed to sync tracker data:", err);
+      setNotice("Tracker data could not be synced. Please make sure the app services are running.");
     }
   };
 
   useEffect(() => {
-    fetchPipelineData();
+    goalsHydratedRef.current = true;
+    const timer = window.setTimeout(() => {
+      fetchPipelineData();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (goalsHydratedRef.current) {
+      window.localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(weeklyGoals));
+    }
+  }, [weeklyGoals]);
 
   const handleAddJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roleInput.trim() || !companyInput.trim()) return;
 
     setIsSubmitting(true);
+    setNotice("");
     try {
       const res = await fetch("/api/tracker", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: roleInput, company: companyInput }),
+        body: JSON.stringify({
+          role: roleInput.trim(),
+          company: companyInput.trim(),
+          application_deadline: deadlineInput || null,
+          deadline_date: deadlineInput || null,
+        }),
       });
 
       if (res.ok) {
         setRoleInput("");
         setCompanyInput("");
+        setDeadlineInput("");
         await fetchPipelineData();
+      } else {
+        setNotice("Application could not be added. Please try again.");
       }
     } catch (err) {
       console.error("Error creating entry:", err);
+      setNotice("Application could not be added. Please try again in a moment.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteJob = async (id: number) => {
+    const originalJobs = [...jobs];
+    setJobs((prev) => prev.filter((job) => job.id !== id));
+    setNotice("");
+
+    try {
+      const res = await fetch(`/api/tracker/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        setJobs(originalJobs);
+        setNotice("Application could not be removed. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error deleting entry:", err);
+      setJobs(originalJobs);
+      setNotice("Application could not be removed. Please try again in a moment.");
     }
   };
 
@@ -119,12 +183,14 @@ export default function TrackerDashboard() {
 
       if (!res.ok) {
         setJobs(originalJobs);
+        setNotice("Status could not be updated. Please try again.");
       } else {
         fetchPipelineData();
       }
     } catch (err) {
       console.error("Error updating status:", err);
       setJobs(originalJobs);
+      setNotice("Status could not be updated. Please try again in a moment.");
     }
   };
 
@@ -134,251 +200,463 @@ export default function TrackerDashboard() {
     );
   };
 
-  // 🛠️ FIX 1: Computes the precise total day count dynamically for the active current month block
-  const generateCalendarDays = () => {
+  const handleAddGoal = (goalText?: string) => {
+    const text = (goalText || goalInput).trim();
+    if (!text) return;
+
+    setWeeklyGoals((prev) => [
+      ...prev,
+      { id: Date.now(), text, completed: false },
+    ]);
+    setGoalInput("");
+  };
+
+  const handleDeleteGoal = (id: number) => {
+    setWeeklyGoals((prev) => prev.filter((goal) => goal.id !== id));
+  };
+
+  const generateCalendarCells = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const totalDays = new Date(year, month + 1, 0).getDate();
-    
-    const days = [];
-    for (let i = 1; i <= totalDays; i++) {
-      days.push(i);
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const cells: Array<number | null> = Array(firstWeekday).fill(null);
+
+    for (let day = 1; day <= totalDays; day += 1) {
+      cells.push(day);
     }
-    return days;
+
+    return cells;
   };
 
-  // 🛠️ FIX 2: Resolves closest upcoming deadline item context dynamically from the evaluation hash matrix
-  const getUpcomingDeadlineAlert = () => {
-    const currentDay = currentDate.getDate();
-    const sortedDays = Object.keys(mockDeadlines)
-      .map(Number)
-      .sort((a, b) => a - b);
-    
-    // Find the closest remaining deadline today or later
-    const targetDay = sortedDays.find((day) => day >= currentDay) || sortedDays[0];
-    
-    if (targetDay && mockDeadlines[targetDay]) {
-      return {
-        day: targetDay,
-        ...mockDeadlines[targetDay]
-      };
-    }
-    return null;
+  const parseDeadlineParts = (deadline?: string | null) => {
+    if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return null;
+    const [year, month, day] = deadline.split("-").map(Number);
+    return { year, month, day };
   };
 
-  const activeAlert = getUpcomingDeadlineAlert();
+  const formatDeadline = useCallback((deadline?: string | null) => {
+    const parts = parseDeadlineParts(deadline);
+    if (!parts) return null;
+
+    return new Date(parts.year, parts.month - 1, parts.day).toLocaleDateString("default", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, []);
+
+  const deadlineJobsByDay = useMemo(() => {
+    const map = new Map<number, TrackedJob[]>();
+    jobs.forEach((job) => {
+      const parts = parseDeadlineParts(job.deadline_date);
+      if (!parts) return;
+      if (parts.year !== currentDate.getFullYear() || parts.month !== currentDate.getMonth() + 1) return;
+      map.set(parts.day, [...(map.get(parts.day) || []), job]);
+    });
+    return map;
+  }, [jobs, currentDate]);
+
+  const activeAlert = useMemo(() => {
+    const todayKey = currentDate.toISOString().slice(0, 10);
+    return jobs
+      .filter((job) => job.deadline_date && job.deadline_date >= todayKey)
+      .sort((a, b) => String(a.deadline_date).localeCompare(String(b.deadline_date)))[0];
+  }, [jobs, currentDate]);
+
+  const suggestedGoals = useMemo(() => {
+    const appliedCount = jobs.filter((job) => job.status === "Applied").length;
+    const interviewingCount = jobs.filter((job) => job.status === "Interviewing").length;
+    const suggestions = [
+      jobs.length === 0
+        ? "Track your first application from Job Hunter"
+        : `Review and update ${jobs.length} tracked application${jobs.length > 1 ? "s" : ""}`,
+      appliedCount > 0
+        ? `Follow up on ${appliedCount} applied role${appliedCount > 1 ? "s" : ""}`
+        : "",
+      interviewingCount > 0
+        ? `Prepare notes for ${interviewingCount} active interview${interviewingCount > 1 ? "s" : ""}`
+        : "",
+      activeAlert
+        ? `Prepare before the ${formatDeadline(activeAlert.deadline_date)} deadline for ${activeAlert.role}`
+        : "",
+    ].filter(Boolean);
+
+    const existing = new Set(weeklyGoals.map((goal) => goal.text.toLowerCase()));
+    return suggestions.filter((goal) => !existing.has(goal.toLowerCase())).slice(0, 3);
+  }, [activeAlert, formatDeadline, jobs, weeklyGoals]);
+
+  const completedGoals = weeklyGoals.filter((goal) => goal.completed).length;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Live Tracking Header Area */}
-        <header className="bg-slate-900 border border-slate-800/80 p-6 rounded-2xl shadow-2xl space-y-2">
-          <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-500 bg-clip-text text-transparent">
-            Application Pipeline Tracker
-          </h1>
-          <div className="flex items-start gap-2 text-xs md:text-sm text-blue-400 bg-blue-950/40 border border-blue-900/30 px-4 py-3 rounded-xl">
-            <span className="flex h-2 w-2 mt-1.5 rounded-full bg-blue-400 animate-pulse shrink-0"></span>
-            <p className="italic">
-              <strong className="font-semibold uppercase tracking-wider text-[10px] bg-blue-900/60 text-blue-200 px-1.5 py-0.5 rounded mr-1.5 not-italic">Gemini Insights:</strong>
-              &ldquo;{aiNudge}&rdquo;
+    <div className={`min-h-screen bg-[#f8f9fa] text-slate-900 antialiased ${dmSans.className}`}>
+      <div className="absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-blue-50 via-white to-transparent pointer-events-none" />
+
+      <div className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+        <header className="mb-8 rounded-2xl border border-blue-100 bg-white p-6 shadow-xl shadow-slate-200/60">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#1E3A8A]">
+                CareerPilot Tracker
+              </p>
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:text-5xl">
+                Application Tracker
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                Track applications, deadlines, and personal goals from one focused workspace.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-3 lg:min-w-[360px]">
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Tracked</p>
+                <p className="mt-1 text-2xl font-bold text-[#1E3A8A]">{jobs.length}</p>
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-white px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Active</p>
+                <p className="mt-1 text-2xl font-bold text-[#1E3A8A]">
+                  {jobs.filter((job) => job.status !== "Rejected").length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-white px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Goals</p>
+                <p className="mt-1 text-2xl font-bold text-[#1E3A8A]">
+                  {completedGoals}/{weeklyGoals.length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-start gap-3 rounded-xl border border-blue-100 bg-[#EFF6FF] px-4 py-3 text-sm text-slate-600">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#1E3A8A]" />
+            <p>
+              <span className="font-bold text-[#1E3A8A]">Progress insight:</span> {aiNudge}
             </p>
           </div>
+
+          {notice && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+              {notice}
+            </div>
+          )}
         </header>
 
-        {/* Workspace Split Columns Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-          
-          {/* 4-Column Active Kanban Board Pipeline */}
-          <main className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
+          <main className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {KANBAN_COLUMNS.map((col) => {
               const columnJobs = jobs.filter((j) => j.status === col);
+
               return (
-                <div
+                <section
                   key={col}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col)}
-                  className="bg-slate-900/80 border border-slate-900 rounded-2xl p-4 min-h-[500px] flex flex-col transition-colors duration-200 hover:bg-slate-900/90"
+                  className="flex min-h-[520px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60"
                 >
-                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-800/60">
-                    <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                      {col}
-                    </span>
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700/50">
-                      {columnJobs.length}
-                    </span>
+                  <div className="mb-4 border-b border-slate-100 pb-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-[#1E3A8A]">
+                        {col}
+                      </h2>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-[#1E3A8A]">
+                        {columnJobs.length}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">{COLUMN_COPY[col]}</p>
                   </div>
 
-                  {/* Task Card Drag Elements Area Container */}
                   <div className="flex-1 space-y-3 overflow-y-auto pr-1">
                     {columnJobs.map((job) => (
-                      <div
+                      <article
                         key={job.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, job.id)}
-                        className="bg-slate-950 border border-slate-800/80 p-4 rounded-xl cursor-grab active:cursor-grabbing hover:border-slate-700 transition duration-150 group shadow-md"
+                        className="group rounded-xl border border-blue-100 bg-[#F8FBFF] p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
                       >
-                        <h4 className="text-sm font-semibold text-slate-100 group-hover:text-white transition">
-                          {job.role}
-                        </h4>
-                        <p className="text-xs text-slate-400 mt-1">{job.company}</p>
-                        <div className="flex items-center justify-between mt-4">
-                          <span className="text-[10px] font-mono text-slate-600">
-                            {job.date_tracked}
-                          </span>
-                          <span className="text-[9px] uppercase tracking-wider font-semibold opacity-0 group-hover:opacity-100 text-slate-500 transition duration-150">
-                            :: Drag
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="line-clamp-3 text-sm font-bold leading-5 text-slate-950">
+                              {job.role}
+                            </h3>
+                            <p className="mt-2 truncate text-xs font-semibold text-slate-500">
+                              {job.company}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={`Remove ${job.role}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteJob(job.id);
+                            }}
+                            className="rounded-lg border border-transparent p-1.5 text-slate-300 opacity-100 transition hover:border-red-100 hover:bg-red-50 hover:text-red-600 sm:opacity-0 sm:group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between text-[11px] text-slate-400">
+                          <span>{job.date_tracked}</span>
+                          <span className="inline-flex items-center gap-1 font-semibold text-slate-400">
+                            <GripVertical className="h-3.5 w-3.5" />
+                            Drag
                           </span>
                         </div>
-                      </div>
+
+                        {(job.deadline_date || job.application_deadline) && (
+                          <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-white px-2 py-1.5 text-[11px] font-semibold text-[#1E3A8A] ring-1 ring-blue-100">
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            <span>
+                              Deadline: {formatDeadline(job.deadline_date) || job.application_deadline}
+                            </span>
+                          </div>
+                        )}
+                      </article>
                     ))}
 
                     {columnJobs.length === 0 && (
-                      <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-800/40 rounded-xl p-4 text-center py-12">
-                        <p className="text-[11px] text-slate-600 font-medium">No Entries</p>
+                      <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-blue-100 bg-blue-50/40 p-4 text-center">
+                        <p className="text-xs font-semibold text-slate-400">Drop applications here</p>
                       </div>
                     )}
                   </div>
-                </div>
+                </section>
               );
             })}
           </main>
 
-          {/* Application Sidebar Action & Target Milestones Module */}
-          <aside className="space-y-6">
-            
-            <section className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
-              <h3 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-4">
-                Track Application
-              </h3>
-              <form onSubmit={handleAddJob} className="space-y-3">
+          <aside className="space-y-5">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60">
+              <div className="mb-4 flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1E3A8A] text-white">
+                  <Plus className="h-4 w-4" />
+                </div>
                 <div>
+                  <h3 className="text-sm font-bold text-slate-950">Track Application</h3>
+                  <p className="text-xs text-slate-500">Add a role manually</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleAddJob} className="space-y-3">
+                <label className="block">
+                  <span className="text-xs font-bold text-slate-600">Role</span>
                   <input
                     type="text"
                     required
-                    placeholder="Role (e.g., Backend Developer)"
+                    placeholder="e.g., Backend Developer"
                     value={roleInput}
                     onChange={(e) => setRoleInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-600 outline-none transition"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100"
                   />
-                </div>
-                <div>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-bold text-slate-600">Company</span>
                   <input
                     type="text"
                     required
-                    placeholder="Company Name"
+                    placeholder="Company name"
                     value={companyInput}
                     onChange={(e) => setCompanyInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-600 outline-none transition"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100"
                   />
-                </div>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs font-bold text-slate-600">Deadline</span>
+                  <input
+                    type="date"
+                    value={deadlineInput}
+                    onChange={(e) => setDeadlineInput(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100"
+                  />
+                </label>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-slate-100 hover:bg-white text-slate-950 font-semibold text-xs py-2.5 rounded-xl transition duration-150 shadow-lg"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-4 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#1D4ED8] disabled:bg-slate-200 disabled:text-slate-500"
                 >
-                  {isSubmitting ? "Adding..." : "Add Pipeline Card"}
+                  <Briefcase className="h-4 w-4" />
+                  {isSubmitting ? "Adding..." : "Add Application"}
                 </button>
               </form>
             </section>
 
-            {/* 🗓️ HACKATHON COMPLIANCE: Premium Grid-based Deadline Calendar Component */}
-            <section className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold tracking-widest text-slate-400 uppercase">
-                  Deadline Calendar
-                </h3>
-                <span className="text-[11px] font-medium font-mono text-indigo-400 bg-indigo-950/50 border border-indigo-900/50 px-2 py-0.5 rounded-md">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60">
+              <div className="mb-4 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between">
+                <div className="flex items-start gap-2">
+                  <CalendarDays className="h-4 w-4 text-[#1E3A8A]" />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-950">Deadline Calendar</h3>
+                    <p className="text-xs text-slate-500">Tracked deadlines appear here.</p>
+                  </div>
+                </div>
+                <span className="rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-[#1E3A8A]">
                   {currentDate.toLocaleString("default", { month: "long" })} {currentDate.getFullYear()}
                 </span>
               </div>
-              
-              {/* Day-of-week labels */}
-              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500 mb-1.5">
-                <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+
+              <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-slate-400">
+                <div>S</div>
+                <div>M</div>
+                <div>T</div>
+                <div>W</div>
+                <div>T</div>
+                <div>F</div>
+                <div>S</div>
               </div>
 
-              {/* Grid-based Month View layout tracking */}
-              <div className="grid grid-cols-7 gap-1 text-center">
-                {generateCalendarDays().map((day) => {
+              <div className="mt-2 grid grid-cols-7 gap-1 text-center">
+                {generateCalendarCells().map((day, index) => {
+                  if (!day) {
+                    return <div key={`blank-${index}`} className="aspect-square" />;
+                  }
+
                   const isToday = day === currentDate.getDate();
-                  const hasDeadline = !!mockDeadlines[day];
+                  const deadlineJobs = deadlineJobsByDay.get(day) || [];
+                  const hasDeadline = deadlineJobs.length > 0;
 
                   return (
                     <div
                       key={day}
-                      title={hasDeadline ? `${mockDeadlines[day].role} - ${mockDeadlines[day].type}` : undefined}
-                      className={`relative aspect-square flex items-center justify-center text-[11px] rounded-lg font-mono font-semibold transition cursor-help ${
-                        isToday
-                          ? "bg-white text-slate-950 shadow-[0_0_12px_rgba(255,255,255,0.3)]"
-                          : hasDeadline
-                          ? "bg-indigo-950 text-indigo-300 border border-indigo-500/40 hover:bg-indigo-900/60"
-                          : "bg-slate-950 text-slate-500 hover:bg-slate-800/40"
+                      title={hasDeadline ? deadlineJobs.map((job) => job.role).join(", ") : undefined}
+                      className={`relative flex aspect-square items-center justify-center rounded-lg text-xs font-bold transition ${
+                        hasDeadline
+                          ? "border border-blue-200 bg-[#1E3A8A] text-white shadow-md"
+                          : isToday
+                          ? "border border-[#1E3A8A] bg-white text-[#1E3A8A] ring-2 ring-blue-100"
+                          : "bg-slate-50 text-slate-500 hover:bg-blue-50"
                       }`}
                     >
                       {day}
-                      {hasDeadline && !isToday && (
-                        <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+                      {hasDeadline && (
+                        <span className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white" />
                       )}
                     </div>
                   );
                 })}
               </div>
-              
-              {/* Calendar deadline summary feed segment */}
+
               {activeAlert && (
-                <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-1.5">
-                  <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Upcoming Target Alert:</div>
-                  <div className="flex items-center gap-2 bg-slate-950/60 border border-slate-800/40 p-2 rounded-xl text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
-                    <p className="truncate text-slate-300">
-                      <strong className="text-white">{currentDate.toLocaleString("default", { month: "short" })} {activeAlert.day}:</strong> {activeAlert.role} ({activeAlert.type})
-                    </p>
-                  </div>
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#1E3A8A]">
+                    Upcoming Deadline
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    <span className="font-bold text-slate-900">
+                      {formatDeadline(activeAlert.deadline_date)}:
+                    </span>{" "}
+                    {activeAlert.role} at {activeAlert.company}
+                  </p>
+                </div>
+              )}
+
+              {!activeAlert && (
+                <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+                  No upcoming deadlines yet. Track jobs with deadline information or add a deadline manually.
                 </div>
               )}
             </section>
 
-            {/* Checkable Weekly Goals Target Module */}
-            <section className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
-              <h3 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-4">
-                Weekly Target Goals
-              </h3>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60">
+              <div className="mb-4 flex items-center gap-2">
+                <Target className="h-4 w-4 text-[#1E3A8A]" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-950">Goal Setting</h3>
+                  <p className="text-xs text-slate-500">Plan weekly application and learning targets.</p>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddGoal();
+                }}
+                className="mb-4 flex gap-2"
+              >
+                <input
+                  type="text"
+                  value={goalInput}
+                  onChange={(e) => setGoalInput(e.target.value)}
+                  placeholder="e.g., Apply to 5 jobs this week"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1E3A8A] focus:ring-4 focus:ring-blue-100"
+                />
+                <button
+                  type="submit"
+                  disabled={!goalInput.trim()}
+                  className="rounded-xl bg-[#1E3A8A] px-3 text-white transition hover:bg-[#1D4ED8] disabled:bg-slate-200 disabled:text-slate-400"
+                  aria-label="Add goal"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </form>
+
+              {suggestedGoals.length > 0 && (
+                <div className="mb-4 space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#1E3A8A]">
+                    Suggested from your tracker
+                  </p>
+                  {suggestedGoals.map((goal) => (
+                    <button
+                      key={goal}
+                      type="button"
+                      onClick={() => handleAddGoal(goal)}
+                      className="block w-full rounded-lg bg-white px-3 py-2 text-left text-xs font-semibold text-slate-600 ring-1 ring-blue-100 transition hover:text-[#1E3A8A]"
+                    >
+                      + {goal}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {weeklyGoals.map((goal) => (
                   <div
                     key={goal.id}
-                    onClick={() => toggleGoal(goal.id)}
-                    className="flex items-start gap-3 cursor-pointer select-none group py-1"
+                    className="group flex w-full items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-left transition hover:border-blue-100 hover:bg-blue-50"
                   >
-                    <div className="mt-0.5 shrink-0">
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition duration-150 ${
-                        goal.completed 
-                          ? "bg-slate-200 border-slate-200 text-slate-900" 
-                          : "border-slate-700 bg-slate-950 group-hover:border-slate-500"
-                      }`}>
-                        {goal.completed && (
-                          <svg className="w-2.5 h-2.5 stroke-[3]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-                    <span className={`text-xs transition duration-200 ${
-                      goal.completed 
-                        ? "line-through text-slate-600 decoration-slate-700" 
-                        : "text-slate-400 group-hover:text-slate-200"
-                    }`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGoal(goal.id)}
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
+                        goal.completed
+                          ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
+                          : "border-slate-300 bg-white text-transparent"
+                      }`}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    <span
+                      onClick={() => toggleGoal(goal.id)}
+                      className={`min-w-0 flex-1 cursor-pointer text-xs leading-5 transition ${
+                        goal.completed
+                          ? "text-slate-400 line-through"
+                          : "font-medium text-slate-600"
+                      }`}
+                    >
                       {goal.text}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGoal(goal.id)}
+                      className="rounded-lg p-1 text-slate-300 opacity-100 transition hover:bg-red-50 hover:text-red-600 sm:opacity-0 sm:group-hover:opacity-100"
+                      aria-label={`Delete goal: ${goal.text}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 ))}
+
+                {weeklyGoals.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs leading-5 text-slate-500">
+                    No goals yet. Add your own targets or use a tracker suggestion.
+                  </div>
+                )}
               </div>
             </section>
-
           </aside>
         </div>
-
       </div>
     </div>
   );

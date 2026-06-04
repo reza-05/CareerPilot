@@ -87,7 +87,7 @@ export default function CVBuilderPage() {
       });
       const data = await response.json();
       if (data.success) {
-        localStorage.setItem("careerpilot_profile_ready", "true");
+        sessionStorage.setItem("careerpilot_profile_ready_session", "true");
         router.push("/job-hunter");
       }
       else alert("Submission failed.");
@@ -96,14 +96,14 @@ export default function CVBuilderPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f9fa] text-[#1E3A8A]">
-      <Loader2 size={64} className="animate-spin mb-8" />
-      <h2 className="text-3xl font-extrabold tracking-tight font-[Urbanist]">Synthesizing Profile...</h2>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f9fa] px-4 text-center text-[#1E3A8A]">
+      <Loader2 size={56} className="animate-spin mb-6 sm:mb-8" />
+      <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl font-[Urbanist]">Preparing Your Profile...</h2>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] py-10 px-4 md:px-6">
+    <div className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 md:px-6">
       <div className="max-w-5xl mx-auto">
         <Link href="/" className="inline-flex items-center text-[#1E3A8A] font-bold text-sm hover:underline mb-8 font-[Urbanist]">
           <ArrowLeft size={18} className="mr-2" /> Back
@@ -115,7 +115,7 @@ export default function CVBuilderPage() {
           </div>
         )}
 
-        <form noValidate onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-8">
+        <form noValidate onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-6 sm:space-y-8">
           <Card title="Personal Identification">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <InputField label="First Name *" name="firstName" required placeholder="e.g., John" value={formData.firstName} onChange={handleChange} />
@@ -187,11 +187,11 @@ export default function CVBuilderPage() {
           </Card>
 
           <Card title="Additional Specifications">
-            <TextArea label="Projects (Optional)" name="projects" placeholder="e.g.,&#10;- CareerPilot (Next.js, FastAPI, ChromaDB): AI-driven recruitment platform...&#10;- SafeRide (Flutter, Node.js): Cross-platform ride-sharing..." value={formData.projects} onChange={handleChange} />
+            <TextArea label="Projects (Optional)" name="projects" placeholder="e.g.,&#10;- CareerPilot: AI-driven career planning platform...&#10;- SafeRide: Cross-platform ride-sharing application..." value={formData.projects} onChange={handleChange} />
             <TextArea label="Certifications (Optional)" name="certs" placeholder="e.g.,&#10;- AWS Certified Cloud Practitioner (2025)&#10;- Cisco Certified Network Associate (CCNA)..." value={formData.certs} onChange={handleChange} />
           </Card>
 
-          <button type="submit" className="w-full bg-[#1E3A8A] text-white text-lg font-bold py-4 rounded-xl hover:bg-[#153073] transition-all shadow-lg font-[Urbanist]">
+          <button type="submit" className="w-full bg-[#1E3A8A] text-white text-base sm:text-lg font-bold py-3.5 sm:py-4 rounded-xl hover:bg-[#153073] transition-all shadow-lg font-[Urbanist]">
             Process
           </button>
         </form>
@@ -202,8 +202,8 @@ export default function CVBuilderPage() {
 
 function Card({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
-      <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mb-6 font-[Urbanist]">{title}</h2>
+    <div className="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+      <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mb-5 sm:mb-6 font-[Urbanist]">{title}</h2>
       {children}
     </div>
   );
@@ -211,14 +211,29 @@ function Card({ title, children }: { title: string, children: React.ReactNode })
 
 function AcademicSubSection({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="bg-slate-50 p-5 md:p-6 rounded-xl border border-slate-200">
-      <h3 className="text-lg md:text-xl font-bold text-[#1E3A8A] mb-5 font-[Urbanist]">{title}</h3>
+    <div className="bg-slate-50 p-4 sm:p-5 md:p-6 rounded-xl border border-slate-200">
+      <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#1E3A8A] mb-4 sm:mb-5 font-[Urbanist]">{title}</h3>
       {children}
     </div>
   );
 }
 
-function InputField({ label, required, ...props }: any) {
+type InputFieldProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  required?: boolean;
+};
+
+type SelectFieldProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  required?: boolean;
+  options: string[];
+};
+
+type TextAreaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  label: string;
+};
+
+function InputField({ label, required, ...props }: InputFieldProps) {
   return (
     <div>
       <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 font-[Urbanist]">
@@ -230,7 +245,7 @@ function InputField({ label, required, ...props }: any) {
   );
 }
 
-function SelectField({ label, required, options, ...props }: any) {
+function SelectField({ label, required, options, ...props }: SelectFieldProps) {
   return (
     <div>
       <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 font-[Urbanist]">
@@ -245,7 +260,7 @@ function SelectField({ label, required, options, ...props }: any) {
   );
 }
 
-function TextArea({ label, ...props }: any) {
+function TextArea({ label, ...props }: TextAreaProps) {
   return (
     <div className="mt-3">
       <label className="block text-sm md:text-base font-bold text-slate-800 mb-2 font-[Urbanist]">{label}</label>

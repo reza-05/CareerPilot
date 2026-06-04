@@ -39,9 +39,8 @@ export async function POST(req: NextRequest) {
       });
 
       if (!backendResponse.ok) {
-        const errorText = await backendResponse.text();
         return NextResponse.json(
-          { success: false, error: `Python service pipeline failure: ${errorText}` },
+          { success: false, error: "We could not prepare your resume right now. Please try again." },
           { status: backendResponse.status }
         );
       }
@@ -116,9 +115,8 @@ ${payload.certs || "Not specified"}
       });
 
       if (!backendResponse.ok) {
-        const errorText = await backendResponse.text();
         return NextResponse.json(
-          { success: false, error: `Python service text embedding failure: ${errorText}` },
+          { success: false, error: "We could not prepare your profile right now. Please try again." },
           { status: backendResponse.status }
         );
       }
@@ -134,13 +132,13 @@ ${payload.certs || "Not specified"}
       { status: 415 }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Critical Proxy Exception during CV Processing:", error);
     return NextResponse.json(
       { 
         success: false,
-        error: "Vector database synchronization failed. Please check your backend service.", 
-        details: error?.message || error 
+        error: "We could not save your profile right now. Please try again.", 
+        details: error instanceof Error ? error.message : String(error) 
       }, 
       { status: 500 }
     );
