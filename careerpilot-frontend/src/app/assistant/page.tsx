@@ -5,15 +5,11 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AIChat from "@/components/AIChat";
-
-const PROFILE_READY_KEY = "careerpilot_profile_ready_session";
-
-const hasPreparedProfile = () => {
-  if (typeof window === "undefined") return false;
-  return window.sessionStorage.getItem(PROFILE_READY_KEY) === "true";
-};
+import { useAuth } from "@/components/AuthProvider";
+import { hasProfileReady } from "@/lib/userSession";
 
 function AssistantContent() {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const prompt = searchParams.get("prompt") || "";
   const [profileReady, setProfileReady] = useState(false);
@@ -21,11 +17,11 @@ function AssistantContent() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setProfileReady(hasPreparedProfile());
+      setProfileReady(hasProfileReady(user?.uid));
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     if (prompt) {

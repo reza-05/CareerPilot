@@ -4,14 +4,21 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DM_Sans } from "next/font/google";
 import {
   Briefcase,
+  CalendarCheck2,
   CalendarDays,
   Check,
+  Flame,
   GripVertical,
+  ListChecks,
   Plus,
   Sparkles,
   Target,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
+import { getTrackerGoalsKey } from "@/lib/userSession";
+import { loadCareerProfile } from "@/lib/profileData";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -36,8 +43,6 @@ interface MilestoneGoal {
 }
 
 const KANBAN_COLUMNS = ["Applied", "Interviewing", "Offer", "Rejected"];
-const GOALS_STORAGE_KEY = "careerpilot_tracker_goals";
-
 const COLUMN_COPY: Record<string, string> = {
   Applied: "Newly tracked opportunities",
   Interviewing: "Active interview loops",
@@ -45,7 +50,19 @@ const COLUMN_COPY: Record<string, string> = {
   Rejected: "Closed or declined roles",
 };
 
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatShortWeekday = (date: Date) =>
+  date.toLocaleDateString("default", { weekday: "short" }).slice(0, 3);
+
 export default function TrackerDashboard() {
+  const { user } = useAuth();
+  const userId = user?.uid || "";
   const [jobs, setJobs] = useState<TrackedJob[]>([]);
   const [roleInput, setRoleInput] = useState("");
   const [companyInput, setCompanyInput] = useState("");
@@ -59,15 +76,21 @@ export default function TrackerDashboard() {
 
   const [weeklyGoals, setWeeklyGoals] = useState<MilestoneGoal[]>([]);
 
-  const fetchPipelineData = async () => {
+  const fetchPipelineData = useCallback(async () => {
+    if (!userId) return;
+
     try {
-      const res = await fetch("/api/tracker");
+      const res = await fetch("/api/tracker", {
+        headers: { "x-user-id": userId },
+      });
       if (res.ok) {
         const data = await res.json();
         setJobs(data);
       }
 
-      const nudgeRes = await fetch("/api/tracker/ai-nudge");
+      const nudgeRes = await fetch("/api/tracker/ai-nudge", {
+        headers: { "x-user-id": userId },
+      });
       if (nudgeRes.ok) {
         const nudgeData = await nudgeRes.json();
         setAiNudge(nudgeData.nudge);
@@ -76,29 +99,34 @@ export default function TrackerDashboard() {
       console.error("Failed to sync tracker data:", err);
       setNotice("Tracker data could not be synced. Please make sure the app services are running.");
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const savedGoals = window.localStorage.getItem(GOALS_STORAGE_KEY);
+      if (!userId) return;
+
+      goalsHydratedRef.current = false;
+      const savedGoals = window.localStorage.getItem(getTrackerGoalsKey(userId));
       if (savedGoals) {
         try {
           setWeeklyGoals(JSON.parse(savedGoals));
         } catch {
           setWeeklyGoals([]);
         }
+      } else {
+        setWeeklyGoals([]);
       }
       goalsHydratedRef.current = true;
       fetchPipelineData();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [fetchPipelineData, userId]);
 
   useEffect(() => {
-    if (goalsHydratedRef.current) {
-      window.localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(weeklyGoals));
+    if (goalsHydratedRef.current && userId) {
+      window.localStorage.setItem(getTrackerGoalsKey(userId), JSON.stringify(weeklyGoals));
     }
-  }, [weeklyGoals]);
+  }, [userId, weeklyGoals]);
 
   const handleAddJob = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +137,7 @@ export default function TrackerDashboard() {
     try {
       const res = await fetch("/api/tracker", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
         body: JSON.stringify({
           role: roleInput.trim(),
           company: companyInput.trim(),
@@ -140,7 +168,10 @@ export default function TrackerDashboard() {
     setNotice("");
 
     try {
-      const res = await fetch(`/api/tracker/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/tracker/${id}`, {
+        method: "DELETE",
+        headers: { "x-user-id": userId },
+      });
       if (!res.ok) {
         setJobs(originalJobs);
         setNotice("Application could not be removed. Please try again.");
@@ -176,7 +207,7 @@ export default function TrackerDashboard() {
     try {
       const res = await fetch(`/api/tracker/${cardId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
         body: JSON.stringify({ status: targetStatus }),
       });
 
@@ -286,6 +317,129 @@ export default function TrackerDashboard() {
   }, [activeAlert, formatDeadline, jobs, weeklyGoals]);
 
   const completedGoals = weeklyGoals.filter((goal) => goal.completed).length;
+  const weeklyGoalPercent = weeklyGoals.length > 0 ? Math.round((completedGoals / weeklyGoals.length) * 100) : 0;
+
+  const weeklyApplications = useMemo(() => {
+    const weekStart = new Date(currentDate);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+
+    return jobs.filter((job) => {
+      if (!job.date_tracked) return false;
+      const trackedDate = new Date(`${job.date_tracked}T00:00:00`);
+      return trackedDate >= weekStart;
+    }).length;
+  }, [currentDate, jobs]);
+
+  const skillCount = useMemo(() => {
+    if (!userId) return 0;
+    const profile = loadCareerProfile(userId, user);
+    return profile.skills
+      .split(",")
+      .map((skill) => skill.trim())
+      .filter(Boolean).length;
+  }, [user, userId]);
+
+  const applicationProgress = useMemo(() => {
+    if (jobs.length === 0) return 0;
+    const weightedTotal = jobs.reduce((total, job) => {
+      const score =
+        job.status === "Offer"
+          ? 100
+          : job.status === "Interviewing"
+          ? 70
+          : job.status === "Applied"
+          ? 40
+          : 20;
+      return total + score;
+    }, 0);
+
+    return Math.round(weightedTotal / jobs.length);
+  }, [jobs]);
+
+  const roadmapPercent = Math.round((applicationProgress + weeklyGoalPercent) / (weeklyGoals.length > 0 ? 2 : 1));
+
+  const streakCount = useMemo(() => {
+    const trackedDays = new Set(jobs.map((job) => job.date_tracked).filter(Boolean));
+    let streak = 0;
+    const cursor = new Date(currentDate);
+    cursor.setHours(0, 0, 0, 0);
+
+    while (trackedDays.has(toLocalDateKey(cursor))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    return streak;
+  }, [currentDate, jobs]);
+
+  const progressCards = [
+    {
+      label: "This Week",
+      value: weeklyApplications,
+      unit: "apps",
+      helper: "Applications sent",
+      icon: CalendarCheck2,
+    },
+    {
+      label: "Profile Skills",
+      value: skillCount,
+      unit: "skills",
+      helper: "Detected from CV/profile",
+      icon: ListChecks,
+    },
+    {
+      label: "Roadmap",
+      value: roadmapPercent,
+      unit: "%",
+      helper: "Applications + goals",
+      icon: TrendingUp,
+    },
+    {
+      label: "Streak",
+      value: streakCount,
+      unit: streakCount === 1 ? "day" : "days",
+      helper: streakCount > 0 ? "Active momentum" : "Track today to start",
+      icon: Flame,
+    },
+  ];
+
+  const statusDistribution = useMemo(() => {
+    const maxCount = Math.max(1, ...KANBAN_COLUMNS.map((column) => jobs.filter((job) => job.status === column).length));
+
+    return KANBAN_COLUMNS.map((column) => {
+      const count = jobs.filter((job) => job.status === column).length;
+      return {
+        label: column,
+        count,
+        percentage: Math.round((count / maxCount) * 100),
+      };
+    });
+  }, [jobs]);
+
+  const weeklyActivity = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, index) => {
+      const date = new Date(currentDate);
+      date.setHours(0, 0, 0, 0);
+      date.setDate(currentDate.getDate() - (6 - index));
+      const key = toLocalDateKey(date);
+
+      return {
+        key,
+        label: formatShortWeekday(date),
+        count: jobs.filter((job) => job.date_tracked === key).length,
+      };
+    });
+  }, [currentDate, jobs]);
+
+  const weeklyActivityMax = Math.max(1, ...weeklyActivity.map((day) => day.count));
+  const lineChartPoints = weeklyActivity
+    .map((day, index) => {
+      const x = 18 + index * 44;
+      const y = 104 - (day.count / weeklyActivityMax) * 76;
+      return `${x},${y}`;
+    })
+    .join(" ");
 
   return (
     <div className={`min-h-screen bg-[#f8f9fa] text-slate-900 antialiased ${dmSans.className}`}>
@@ -339,6 +493,120 @@ export default function TrackerDashboard() {
             </div>
           )}
         </header>
+
+        <section className="mb-6 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl shadow-slate-200/60 sm:mb-8 sm:p-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#1E3A8A]">
+                Progress Dashboard
+              </p>
+              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+                Weekly momentum at a glance
+              </h2>
+            </div>
+            {activeAlert && (
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-[#1E3A8A]">
+                Next: {formatDeadline(activeAlert.deadline_date)} deadline
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {progressCards.map((card) => {
+              const Icon = card.icon;
+
+              return (
+                <div
+                  key={card.label}
+                  className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#1E3A8A] ring-1 ring-blue-100">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                      {card.label}
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-bold tracking-tight text-[#1E3A8A]">{card.value}</span>
+                    <span className="pb-1 text-xs font-bold uppercase text-slate-500">{card.unit}</span>
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">{card.helper}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-950">Application Status</h3>
+                  <p className="text-xs font-semibold text-slate-500">Status counts from your tracker</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#1E3A8A] ring-1 ring-blue-100">
+                  {jobs.length} total
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {statusDistribution.map((item) => (
+                  <div key={item.label}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">{item.label}</span>
+                      <span className="font-bold text-[#1E3A8A]">{item.count}</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-white ring-1 ring-blue-100">
+                      <div
+                        className="h-full rounded-full bg-[#1E3A8A] transition-all"
+                        style={{ width: `${item.percentage}%` }}
+                        aria-label={`${item.label}: ${item.count} applications`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-950">Weekly Activity</h3>
+                  <p className="text-xs font-semibold text-slate-500">Applications tracked over the last 7 days</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#1E3A8A] ring-1 ring-blue-100">
+                  {weeklyApplications} this week
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-white p-3 ring-1 ring-blue-100">
+                <svg viewBox="0 0 300 132" role="img" aria-label="Line chart of applications tracked during the last 7 days" className="h-36 w-full">
+                  {[28, 66, 104].map((line) => (
+                    <line key={line} x1="14" y1={line} x2="286" y2={line} stroke="#E2E8F0" strokeWidth="1" />
+                  ))}
+                  <polyline points={lineChartPoints} fill="none" stroke="#1E3A8A" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  {weeklyActivity.map((day, index) => {
+                    const x = 18 + index * 44;
+                    const y = 104 - (day.count / weeklyActivityMax) * 76;
+
+                    return (
+                      <g key={day.key}>
+                        <circle cx={x} cy={y} r="5" fill="#1E3A8A" />
+                        <text x={x} y="124" textAnchor="middle" className="fill-slate-500 text-[9px] font-bold">
+                          {day.label}
+                        </text>
+                        <text x={x} y={Math.max(14, y - 10)} textAnchor="middle" className="fill-[#1E3A8A] text-[9px] font-bold">
+                          {day.count}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
           <main className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">

@@ -3,6 +3,9 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/components/AuthProvider';
+import { markProfileReady } from '@/lib/userSession';
+import { loadCareerProfile, saveCareerProfile } from '@/lib/profileData';
 
 // Explicit interface to fix the "IntrinsicAttributes" error in page.tsx
 interface CVUploaderProps {
@@ -14,6 +17,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   const [loading, setLoading] = useState(false);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const router = useRouter();
+  const { user } = useAuth();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -24,6 +28,10 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
 
   const handleUpload = async () => {
     if (!file) return;
+    if (!user?.uid) {
+      setErrorNotification("Please sign in before uploading your resume.");
+      return;
+    }
     setLoading(true);
     setErrorNotification(null);
 
@@ -31,17 +39,23 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
     formData.append('file', file);
 
     try {
-      // Must match @router.post("/cv-upload") in cv_upload.py
-      const response = await fetch('/api/cv-upload', {
+      const response = await fetch('/api/cv-processor', {
         method: 'POST',
-        headers: { 'x-user-id': 'hackathon_session_user' },
+        headers: { 'x-user-id': user.uid },
         body: formData,
       });
 
       const data = await response.json();
 
       if (response.ok && data?.success) {
-        sessionStorage.setItem("careerpilot_profile_ready_session", "true");
+        if (Array.isArray(data.skills) && data.skills.length > 0) {
+          const profile = loadCareerProfile(user.uid, user);
+          saveCareerProfile(user.uid, {
+            ...profile,
+            skills: data.skills.join(", "),
+          });
+        }
+        markProfileReady(user.uid);
         onUploadSuccess("Resume Vectorized Successfully");
         router.push('/job-hunter');
       } else {

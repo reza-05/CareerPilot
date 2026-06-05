@@ -12,6 +12,56 @@ load_dotenv()
 
 class CVVectorEngine:
     FALLBACK_DIMENSIONS = 3072
+    SKILL_ALIASES = {
+        "python": "Python",
+        "javascript": "JavaScript",
+        "typescript": "TypeScript",
+        "java": "Java",
+        "c++": "C++",
+        "c#": "C#",
+        "react": "React",
+        "next.js": "Next.js",
+        "nextjs": "Next.js",
+        "node.js": "Node.js",
+        "nodejs": "Node.js",
+        "express": "Express",
+        "fastapi": "FastAPI",
+        "django": "Django",
+        "flask": "Flask",
+        "html": "HTML",
+        "css": "CSS",
+        "tailwind": "Tailwind CSS",
+        "sql": "SQL",
+        "mysql": "MySQL",
+        "postgresql": "PostgreSQL",
+        "mongodb": "MongoDB",
+        "firebase": "Firebase",
+        "docker": "Docker",
+        "git": "Git",
+        "github": "GitHub",
+        "aws": "AWS",
+        "azure": "Azure",
+        "gcp": "GCP",
+        "machine learning": "Machine Learning",
+        "deep learning": "Deep Learning",
+        "data analysis": "Data Analysis",
+        "data science": "Data Science",
+        "pandas": "Pandas",
+        "numpy": "NumPy",
+        "tensorflow": "TensorFlow",
+        "pytorch": "PyTorch",
+        "scikit-learn": "Scikit-learn",
+        "nlp": "NLP",
+        "api": "API",
+        "rest api": "REST API",
+        "graphql": "GraphQL",
+        "linux": "Linux",
+        "figma": "Figma",
+        "communication": "Communication",
+        "leadership": "Leadership",
+        "teamwork": "Teamwork",
+        "problem solving": "Problem Solving",
+    }
 
     def __init__(self):
         self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -81,7 +131,18 @@ class CVVectorEngine:
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()
 
-    def ingest_cv(self, file_path: str, filename: str) -> int:
+    def extract_skills(self, text: str) -> list[str]:
+        normalized = re.sub(r"\s+", " ", text.lower())
+        detected = []
+
+        for alias, display_name in self.SKILL_ALIASES.items():
+            escaped = re.escape(alias)
+            if re.search(rf"(?<![a-z0-9+#.]){escaped}(?![a-z0-9+#.])", normalized):
+                detected.append(display_name)
+
+        return sorted(set(detected), key=lambda skill: skill.lower())
+
+    def ingest_cv(self, file_path: str, filename: str, user_id: str = "anonymous_user") -> int:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
@@ -98,9 +159,9 @@ class CVVectorEngine:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
         chunks = text_splitter.split_text(raw_text)
 
-        # Clear old CV chunks before re-ingesting
+        # Clear only this user's old CV chunks before re-ingesting.
         try:
-            existing = self.collection.get()
+            existing = self.collection.get(where={"user_id": user_id})
             if existing["ids"]:
                 self.collection.delete(ids=existing["ids"])
         except Exception:
@@ -111,8 +172,8 @@ class CVVectorEngine:
             vector_embedding = self._get_embedding(chunk)
             documents_list.append(chunk)
             embeddings_list.append(vector_embedding)
-            metadatas_list.append({"source_file": filename, "chunk_index": index})
-            ids_list.append(f"{filename}_chunk_{index}")
+            metadatas_list.append({"source_file": filename, "chunk_index": index, "user_id": user_id})
+            ids_list.append(f"{user_id}_{filename}_chunk_{index}")
 
         self.collection.upsert(
             ids=ids_list,
@@ -122,20 +183,21 @@ class CVVectorEngine:
         )
         return len(chunks)
 
-    def retrieve_cv_context(self, query: str, num_results: int = 4) -> list:
+    def retrieve_cv_context(self, query: str, num_results: int = 4, user_id: str = "anonymous_user") -> list:
         query_embedding = self._get_embedding(query)
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=num_results
+            n_results=num_results,
+            where={"user_id": user_id}
         )
         return results["documents"][0] if results and "documents" in results else []
 
-    def get_full_cv_text(self) -> str:
+    def get_full_cv_text(self, user_id: str = "anonymous_user") -> str:
         storage_dir = "./storage/temp_cvs"
         if not os.path.exists(storage_dir):
             return ""
         files = sorted(
-            [f for f in os.listdir(storage_dir) if f.endswith(".txt")],
+            [f for f in os.listdir(storage_dir) if f.endswith(".txt") and f.startswith(f"{user_id}_")],
             key=lambda x: os.path.getmtime(os.path.join(storage_dir, x)),
             reverse=True
         )
@@ -144,10 +206,10 @@ class CVVectorEngine:
         with open(os.path.join(storage_dir, files[0]), "r", encoding="utf-8") as f:
             return f.read()
 
-    def compute_fit_score(self, job_description: str) -> dict:
+    def compute_fit_score(self, job_description: str, user_id: str = "anonymous_user") -> dict:
         import numpy as np
         jd_embedding = self._get_embedding(job_description[:1500])
-        stored = self.collection.get(include=["embeddings", "documents"])
+        stored = self.collection.get(where={"user_id": user_id}, include=["embeddings", "documents"])
         stored_embeddings = stored.get("embeddings")
         if stored_embeddings is None or len(stored_embeddings) == 0:
             return {"score": 0.0, "percent": 0}

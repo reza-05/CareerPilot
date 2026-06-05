@@ -45,9 +45,11 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const backendData = await backendResponse.json();
+
       // Return definitive operational flag and targeted dashboard redirect
       return NextResponse.json(
-        { success: true, redirectUrl: "/job-hunter" }, 
+        { success: true, redirectUrl: "/job-hunter", skills: backendData.skills || [] },
         { status: 200 }
       );
     }
@@ -121,14 +123,16 @@ ${payload.certs || "Not specified"}
         );
       }
 
+      const backendData = await backendResponse.json();
+
       return NextResponse.json(
-        { success: true, redirectUrl: "/job-hunter" }, 
+        { success: true, redirectUrl: "/job-hunter", skills: backendData.skills || [] },
         { status: 200 }
       );
     }
 
     return NextResponse.json(
-      { success: false, error: "Unsupported Media Pipeline Target Type" }, 
+      { success: false, error: "Unsupported profile submission format." },
       { status: 415 }
     );
 

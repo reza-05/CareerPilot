@@ -4,20 +4,16 @@ import React, { useState, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
+import { markProfileReady } from "@/lib/userSession";
+import { loadCareerProfile, saveCareerProfile } from "@/lib/profileData";
 
 export default function CVBuilderPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
-  const [formData, setFormData] = useState({
-    firstName: "", lastName: "", headline: "", email: "", phone: "", address: "", dob: "", linkedIn: "", github: "",
-    summary: "",
-    sscSchool: "", sscGroup: "", sscYear: "", sscGpa: "",
-    hscCollege: "", hscGroup: "", hscYear: "", hscGpa: "",
-    uniDegree: "", uniName: "", uniMajor: "", uniYear: "", uniGpa: "",
-    isWorkEnabled: false, workTitle: "", workCompany: "", workYear: "", workDesc: "",
-    skills: "", languages: "", projects: "", certs: "",
-  });
+  const [formData, setFormData] = useState(() => loadCareerProfile(user?.uid, user));
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -30,6 +26,11 @@ export default function CVBuilderPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!user?.uid) {
+      setValidationError("Please sign in before creating your CV profile.");
+      return;
+    }
 
     const requiredFields: { name: keyof typeof formData; label: string }[] = [
       { name: "firstName", label: "First Name" },
@@ -80,14 +81,15 @@ export default function CVBuilderPage() {
     };
 
     try {
+      saveCareerProfile(user.uid, formData);
       const response = await fetch("/api/cv-processor", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": "hackathon_session_user" },
+        headers: { "Content-Type": "application/json", "x-user-id": user.uid },
         body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (data.success) {
-        sessionStorage.setItem("careerpilot_profile_ready_session", "true");
+        markProfileReady(user.uid);
         router.push("/job-hunter");
       }
       else alert("Submission failed.");
@@ -139,7 +141,7 @@ export default function CVBuilderPage() {
               <AcademicSubSection title="Secondary School (SSC)">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <InputField label="School *" name="sscSchool" required placeholder="e.g., Rajshahi Collegiate School" value={formData.sscSchool} onChange={handleChange} />
-                  <SelectField label="SSC Group *" name="sscGroup" required options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
+                  <SelectField label="SSC Group *" name="sscGroup" required value={formData.sscGroup} options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
                   <InputField label="SSC Passing Year *" name="sscYear" required type="number" placeholder="e.g., 2020" value={formData.sscYear} onChange={handleChange} />
                   <InputField label="Result / GPA (Out of 5.00) *" name="sscGpa" required placeholder="e.g., 5.00" value={formData.sscGpa} onChange={handleChange} />
                 </div>
@@ -147,7 +149,7 @@ export default function CVBuilderPage() {
               <AcademicSubSection title="Higher Secondary (HSC)">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <InputField label="College *" name="hscCollege" required placeholder="e.g., Dhaka College" value={formData.hscCollege} onChange={handleChange} />
-                  <SelectField label="HSC Group *" name="hscGroup" required options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
+                  <SelectField label="HSC Group *" name="hscGroup" required value={formData.hscGroup} options={["Science", "Commerce", "Arts"]} onChange={handleChange} />
                   <InputField label="HSC Passing Year *" name="hscYear" required type="number" placeholder="e.g., 2022" value={formData.hscYear} onChange={handleChange} />
                   <InputField label="Result / GPA (Out of 5.00) *" name="hscGpa" required placeholder="e.g., 5.00" value={formData.hscGpa} onChange={handleChange} />
                 </div>

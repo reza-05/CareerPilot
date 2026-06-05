@@ -2,7 +2,37 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input"; 
-import { Bot, Loader2, Send, Sparkles, UserRound } from "lucide-react";
+import { Bot, Loader2, Send, Sparkles, Trash2, UserRound } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
+import { getAssistantChatStateKey } from "@/lib/userSession";
+
+type ChatMessage = { role: string; content: string };
+
+type AssistantChatState = {
+  messages: ChatMessage[];
+  input: string;
+};
+
+const emptyAssistantChatState: AssistantChatState = {
+  messages: [],
+  input: "",
+};
+
+function loadAssistantChatState(userId?: string | null): AssistantChatState {
+  if (!userId || typeof window === "undefined") return emptyAssistantChatState;
+
+  try {
+    const saved = window.localStorage.getItem(getAssistantChatStateKey(userId));
+    if (!saved) return emptyAssistantChatState;
+
+    return {
+      ...emptyAssistantChatState,
+      ...(JSON.parse(saved) as Partial<AssistantChatState>),
+    };
+  } catch {
+    return emptyAssistantChatState;
+  }
+}
 
 export default function AIChat({
   initialPrompt = "",
@@ -11,8 +41,10 @@ export default function AIChat({
   initialPrompt?: string;
   promptVersion?: number;
 }) {
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
-  const [input, setInput] = useState("");
+  const { user } = useAuth();
+  const initialChatState = loadAssistantChatState(user?.uid);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialChatState.messages);
+  const [input, setInput] = useState(initialChatState.input);
   const [loading, setLoading] = useState(false);
   const lastPromptVersion = useRef(-1);
 
@@ -22,6 +54,15 @@ export default function AIChat({
       lastPromptVersion.current = promptVersion;
     }
   }, [initialPrompt, promptVersion]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    window.localStorage.setItem(
+      getAssistantChatStateKey(user.uid),
+      JSON.stringify({ messages, input }),
+    );
+  }, [input, messages, user?.uid]);
 
   const sendMessage = async () => {
     const trimmedInput = input.trim();
@@ -39,7 +80,7 @@ export default function AIChat({
       // 3. Routed through local Next.js rewrite configuration proxy rules safely
       const response = await fetch("/api/query-cv", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-user-id": user?.uid || "" },
         body: JSON.stringify({
           query: trimmedInput,
           history: messages,
@@ -61,6 +102,14 @@ export default function AIChat({
     }
   };
 
+  const clearChat = () => {
+    setMessages([]);
+    setInput("");
+    if (user?.uid) {
+      window.localStorage.removeItem(getAssistantChatStateKey(user.uid));
+    }
+  };
+
   return (
     <div className="w-full overflow-hidden rounded-2xl border border-blue-200/80 bg-[#F7FAFF] shadow-2xl shadow-blue-100/80 ring-1 ring-white">
       <div className="flex flex-col gap-3 border-b border-blue-100 bg-[#EEF4FF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -73,9 +122,21 @@ export default function AIChat({
             <p className="text-xs font-medium text-slate-500">CV-grounded career guidance</p>
           </div>
         </div>
-        <div className="hidden items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-[#1E3A8A] shadow-sm sm:flex">
-          <Sparkles size={13} />
-          RAG Enabled
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-[#1E3A8A] shadow-sm sm:flex">
+            <Sparkles size={13} />
+            CV Context
+          </div>
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={clearChat}
+              className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-500 shadow-sm transition hover:text-[#1E3A8A]"
+            >
+              <Trash2 size={13} />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 

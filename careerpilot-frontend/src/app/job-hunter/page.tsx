@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
 import { DM_Sans } from 'next/font/google';
+import { useAuth } from "@/components/AuthProvider";
+import { getJobHunterStateKey, hasProfileReady } from "@/lib/userSession";
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -11,7 +13,6 @@ const dmSans = DM_Sans({
 
 const PROFILE_REQUIRED_MESSAGE =
   "Please upload your CV or complete your profile first to receive suitable job recommendations and fit scores.";
-const PROFILE_READY_KEY = "careerpilot_profile_ready_session";
 
 interface JobResult {
   title: string;
@@ -25,31 +26,66 @@ interface JobResult {
   matchReason?: string;
 }
 
-const hasPreparedProfile = () => {
-  if (typeof window === "undefined") return false;
-  return window.sessionStorage.getItem(PROFILE_READY_KEY) === "true";
+type JobHunterSavedState = {
+  jobs: JobResult[];
+  searchQuery: string;
+  statusMessage: string;
+  trackingStates: { [key: string]: string };
 };
 
+const emptyJobHunterState: JobHunterSavedState = {
+  jobs: [],
+  searchQuery: "",
+  statusMessage: "",
+  trackingStates: {},
+};
+
+function loadJobHunterState(userId?: string | null): JobHunterSavedState {
+  if (!userId || typeof window === "undefined") return emptyJobHunterState;
+
+  try {
+    const saved = window.localStorage.getItem(getJobHunterStateKey(userId));
+    if (!saved) return emptyJobHunterState;
+
+    return {
+      ...emptyJobHunterState,
+      ...(JSON.parse(saved) as Partial<JobHunterSavedState>),
+    };
+  } catch {
+    return emptyJobHunterState;
+  }
+}
+
 export default function JobHunter() {
-  // Maintaining a clean empty initial state on page mount
-  const [jobs, setJobs] = useState<JobResult[]>([]);
+  const { user } = useAuth();
+  const initialSavedState = loadJobHunterState(user?.uid);
+  const [jobs, setJobs] = useState<JobResult[]>(initialSavedState.jobs);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSavedState.searchQuery);
   const [profileReady, setProfileReady] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState(initialSavedState.statusMessage);
   
   // Clean string index signature matching tracking states safely
-  const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>({});
+  const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>(initialSavedState.trackingStates);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const isReady = hasPreparedProfile();
+      const isReady = hasProfileReady(user?.uid);
       setProfileReady(isReady);
-      setStatusMessage(isReady ? "" : PROFILE_REQUIRED_MESSAGE);
+      setStatusMessage((current) => (isReady ? (current === PROFILE_REQUIRED_MESSAGE ? "" : current) : PROFILE_REQUIRED_MESSAGE));
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    window.localStorage.setItem(
+      getJobHunterStateKey(user.uid),
+      JSON.stringify({ jobs, searchQuery, statusMessage, trackingStates }),
+    );
+  }, [jobs, searchQuery, statusMessage, trackingStates, user?.uid]);
 
   const getSourceName = (url?: string) => {
     if (!url) return "Job Source";
@@ -80,7 +116,7 @@ export default function JobHunter() {
     try {
       const res = await fetch("/api/search-jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-user-id": user?.uid || "" },
         body: JSON.stringify({ query: targetQuery }),
       });
       const data = await res.json();
@@ -123,6 +159,7 @@ export default function JobHunter() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-user-id": user?.uid || "",
         },
         body: JSON.stringify({
           role: jobTitle,

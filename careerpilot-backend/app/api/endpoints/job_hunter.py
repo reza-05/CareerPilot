@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Header
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from tavily import TavilyClient
@@ -24,6 +24,10 @@ llm = LLMService()
 
 UPLOAD_DIR = "./storage/temp_cvs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+def sanitize_user_id(user_id: str) -> str:
+    safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", user_id or "anonymous_user")
+    return safe_id[:120] or "anonymous_user"
 
 class JobRequest(BaseModel):
     query: str
@@ -122,20 +126,22 @@ def normalize_deadline_date(deadline_text: str) -> Optional[str]:
     return None
 
 @router.post("/api/upload-cv")
-async def upload_cv(file: UploadFile = File(...)):
+async def upload_cv(file: UploadFile = File(...), x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
     allowed_extensions = {".pdf", ".docx", ".txt"}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
 
-    save_path = os.path.join(UPLOAD_DIR, file.filename)
+    safe_filename = f"{user_id}_{os.path.basename(file.filename)}"
+    save_path = os.path.join(UPLOAD_DIR, safe_filename)
     try:
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        chunk_count = vector_engine.ingest_cv(save_path, file.filename)
+        chunk_count = vector_engine.ingest_cv(save_path, safe_filename, user_id=user_id)
         return {
             "status": "success",
-            "filename": file.filename,
+            "filename": safe_filename,
             "chunks_indexed": chunk_count,
             "message": f"CV indexed into {chunk_count} chunks."
         }
@@ -143,7 +149,8 @@ async def upload_cv(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/search-jobs")
-async def search_jobs(request: JobRequest):
+async def search_jobs(request: JobRequest, x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
     try:
         results = tavily.search(query=request.query, search_depth="advanced")
         formatted = []
@@ -152,11 +159,11 @@ async def search_jobs(request: JobRequest):
             job_description = item.get("content", "")
             job_title = item.get("title", "")
 
-            fit_data = vector_engine.compute_fit_score(job_description)
+            fit_data = vector_engine.compute_fit_score(job_description, user_id=user_id)
             fit_score = fit_data["score"]
             fit_percent = fit_data["percent"]
 
-            relevant_cv_chunks = vector_engine.retrieve_cv_context(job_description, num_results=3)
+            relevant_cv_chunks = vector_engine.retrieve_cv_context(job_description, num_results=3, user_id=user_id)
             cv_context_str = "\n".join(relevant_cv_chunks) if relevant_cv_chunks else "No CV data available."
 
             explanation_prompt = (
@@ -188,10 +195,7 @@ async def search_jobs(request: JobRequest):
 
             except LLMUnavailableError as ai_err:
                 fallback_meta = extract_job_metadata(job_description, request.query)
-                match_reason = (
-                    f"Fit score computed from CV/job similarity: {fit_percent}%. "
-                    "AI explanation is temporarily unavailable."
-                )
+                match_reason = build_local_match_reason(job_description, cv_context_str, fit_percent)
                 salary_range = fallback_meta["salaryRange"]
                 deadline = fallback_meta["applicationDeadline"]
                 location = fallback_meta["location"]
@@ -208,12 +212,17 @@ async def search_jobs(request: JobRequest):
 
         return {"results": formatted}
     except Exception as e:
-        return {"results": [], "error": str(e)}
+        print(f"Job search failed: {e}")
+        return {
+            "results": [],
+            "error": "Job search is temporarily unavailable. Please check your connection and try again.",
+        }
 
 @router.post("/api/query-cv")
-async def query_cv(request: JobRequest):
+async def query_cv(request: JobRequest, x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
     try:
-        relevant_chunks = vector_engine.retrieve_cv_context(request.query, num_results=5)
+        relevant_chunks = vector_engine.retrieve_cv_context(request.query, num_results=5, user_id=user_id)
         cv_context = "\n\n".join(relevant_chunks) if relevant_chunks else "No CV uploaded yet."
         history_str = "\n".join([
             f"{message.get('role', 'user')}: {message.get('content', '')}"
@@ -242,6 +251,7 @@ Base = declarative_base()
 class JobTracker(Base):
     __tablename__ = "job_tracker"
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True, default="anonymous_user")
     role = Column(String, nullable=False)
     company = Column(String, nullable=False)
     status = Column(String, default="Applied")
@@ -256,6 +266,7 @@ def ensure_tracker_columns():
     inspector = inspect(engine)
     existing_columns = {column["name"] for column in inspector.get_columns("job_tracker")}
     columns_to_add = {
+        "user_id": "VARCHAR",
         "application_deadline": "VARCHAR",
         "deadline_date": "VARCHAR",
         "source_url": "VARCHAR",
@@ -287,8 +298,10 @@ def get_db():
         db.close()
 
 @router.post("/api/tracker")
-def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db)):
+def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
     db_entry = JobTracker(
+        user_id=user_id,
         role=job.role,
         company=job.company,
         status="Applied",
@@ -302,12 +315,14 @@ def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db)):
     return db_entry
 
 @router.get("/api/tracker")
-def list_tracked_jobs(db: Session = Depends(get_db)):
-    return db.query(JobTracker).all()
+def list_tracked_jobs(db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
+    return db.query(JobTracker).filter(JobTracker.user_id == user_id).all()
 
 @router.put("/api/tracker/{id}")
-def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_db)):
-    db_job = db.query(JobTracker).filter(JobTracker.id == id).first()
+def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
+    db_job = db.query(JobTracker).filter(JobTracker.id == id, JobTracker.user_id == user_id).first()
     if not db_job:
         raise HTTPException(status_code=404, detail="Entry not found")
     db_job.status = payload.status
@@ -315,8 +330,9 @@ def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_
     return {"status": "success"}
 
 @router.delete("/api/tracker/{id}")
-def delete_tracked_job(id: int, db: Session = Depends(get_db)):
-    db_job = db.query(JobTracker).filter(JobTracker.id == id).first()
+def delete_tracked_job(id: int, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
+    db_job = db.query(JobTracker).filter(JobTracker.id == id, JobTracker.user_id == user_id).first()
     if not db_job:
         raise HTTPException(status_code=404, detail="Entry not found")
     db.delete(db_job)
@@ -324,9 +340,10 @@ def delete_tracked_job(id: int, db: Session = Depends(get_db)):
     return {"status": "success"}
 
 @router.get("/api/tracker/ai-nudge")
-def fetch_ai_nudge(db: Session = Depends(get_db)):
+def fetch_ai_nudge(db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
+    user_id = sanitize_user_id(x_user_id)
     try:
-        count = db.query(JobTracker).filter(JobTracker.status == "Applied").count()
+        count = db.query(JobTracker).filter(JobTracker.user_id == user_id, JobTracker.status == "Applied").count()
         nudge = llm.generate_text(
             f"User has {count} active applications. Give a sharp 1-sentence career motivation nudge.",
             temperature=0.45,
