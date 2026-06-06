@@ -140,7 +140,31 @@ class CVVectorEngine:
             if re.search(rf"(?<![a-z0-9+#.]){escaped}(?![a-z0-9+#.])", normalized):
                 detected.append(display_name)
 
+        detected.extend(self._extract_skills_from_sections(text))
         return sorted(set(detected), key=lambda skill: skill.lower())
+
+    def _extract_skills_from_sections(self, text: str) -> list[str]:
+        section_pattern = re.compile(
+            r"(?is)(?:^|\n)\s*(?:technical\s+skills|technical\s+competencies|core\s+skills|skills|tools\s*(?:&|and)\s*technologies)\s*:?\s*(.*?)(?=\n\s*(?:experience|education|projects|certifications|languages|summary|objective|work\s+history|achievements|$))"
+        )
+        detected = []
+
+        for match in section_pattern.finditer(text):
+            section = match.group(1)
+            candidates = re.split(r"[,;|•\n\t]+", section)
+
+            for candidate in candidates:
+                cleaned = re.sub(r"^[\-\u2022*]+\s*", "", candidate).strip()
+                cleaned = re.sub(r"\s+", " ", cleaned)
+                if not cleaned or len(cleaned) > 40:
+                    continue
+                if re.search(r"\d{4}|@|https?://", cleaned):
+                    continue
+                if len(cleaned.split()) > 4:
+                    continue
+                detected.append(cleaned)
+
+        return detected
 
     def ingest_cv(self, file_path: str, filename: str, user_id: str = "anonymous_user") -> int:
         if not os.path.exists(file_path):

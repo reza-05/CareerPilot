@@ -79,6 +79,60 @@ export default function JobHunter() {
   }, [user?.uid]);
 
   useEffect(() => {
+    const userId = user?.uid;
+    if (!userId) return;
+
+    const syncTrackedJobs = async () => {
+      try {
+        const response = await fetch("/api/tracker", {
+          headers: { "x-user-id": userId },
+        });
+        if (!response.ok) return;
+
+        const trackedJobs = await response.json();
+        const activeUrls = new Set(
+          trackedJobs
+            .map((job: { source_url?: string | null }) => job.source_url)
+            .filter(Boolean)
+        );
+
+        setTrackingStates((prev) => {
+          let changed = false;
+          const next = { ...prev };
+
+          Object.entries(next).forEach(([url, status]) => {
+            if (status === "tracked" && !activeUrls.has(url)) {
+              next[url] = "";
+              changed = true;
+            }
+          });
+
+          jobs.forEach((job) => {
+            if (job.url && activeUrls.has(job.url) && next[job.url] !== "tracked") {
+              next[job.url] = "tracked";
+              changed = true;
+            }
+          });
+
+          return changed ? next : prev;
+        });
+      } catch (error) {
+        console.error("Failed to sync tracked job buttons:", error);
+      }
+    };
+
+    const timer = window.setTimeout(syncTrackedJobs, 0);
+    window.addEventListener("focus", syncTrackedJobs);
+    window.addEventListener("pageshow", syncTrackedJobs);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", syncTrackedJobs);
+      window.removeEventListener("pageshow", syncTrackedJobs);
+    };
+  }, [jobs, user?.uid]);
+
+  useEffect(() => {
     if (!user?.uid) return;
 
     window.localStorage.setItem(

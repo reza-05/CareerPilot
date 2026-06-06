@@ -17,8 +17,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { getTrackerGoalsKey } from "@/lib/userSession";
-import { loadCareerProfile } from "@/lib/profileData";
+import { getTrackerActivityKey, getTrackerGoalsKey } from "@/lib/userSession";
+import { loadCareerProfile, normalizeSkillList } from "@/lib/profileData";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -40,6 +40,15 @@ interface MilestoneGoal {
   id: number;
   text: string;
   completed: boolean;
+}
+
+interface TrackerActivityEvent {
+  id: string;
+  jobId?: number;
+  role: string;
+  company: string;
+  date: string;
+  source: "manual" | "tracked" | "backfill";
 }
 
 const KANBAN_COLUMNS = ["Applied", "Interviewing", "Offer", "Rejected"];
@@ -73,8 +82,11 @@ export default function TrackerDashboard() {
   const [notice, setNotice] = useState("");
   const [currentDate] = useState(new Date());
   const goalsHydratedRef = useRef(false);
+  const activityHydratedRef = useRef(false);
 
   const [weeklyGoals, setWeeklyGoals] = useState<MilestoneGoal[]>([]);
+  const [activityEvents, setActivityEvents] = useState<TrackerActivityEvent[]>([]);
+  const [profileSkills, setProfileSkills] = useState<string[]>([]);
 
   const fetchPipelineData = useCallback(async () => {
     if (!userId) return;
@@ -117,10 +129,49 @@ export default function TrackerDashboard() {
         setWeeklyGoals([]);
       }
       goalsHydratedRef.current = true;
+
+      activityHydratedRef.current = false;
+      const savedActivity = window.localStorage.getItem(getTrackerActivityKey(userId));
+      if (savedActivity) {
+        try {
+          setActivityEvents(JSON.parse(savedActivity));
+        } catch {
+          setActivityEvents([]);
+        }
+      } else {
+        setActivityEvents([]);
+      }
+      activityHydratedRef.current = true;
       fetchPipelineData();
     }, 0);
     return () => window.clearTimeout(timer);
   }, [fetchPipelineData, userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      const timer = window.setTimeout(() => {
+        setProfileSkills([]);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+
+    const refreshProfileSkills = () => {
+      const profile = loadCareerProfile(userId, user);
+      setProfileSkills(normalizeSkillList(profile.skills));
+    };
+
+    const timer = window.setTimeout(refreshProfileSkills, 0);
+    window.addEventListener("focus", refreshProfileSkills);
+    window.addEventListener("pageshow", refreshProfileSkills);
+    window.addEventListener("storage", refreshProfileSkills);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", refreshProfileSkills);
+      window.removeEventListener("pageshow", refreshProfileSkills);
+      window.removeEventListener("storage", refreshProfileSkills);
+    };
+  }, [user, userId]);
 
   useEffect(() => {
     if (goalsHydratedRef.current && userId) {
@@ -128,10 +179,49 @@ export default function TrackerDashboard() {
     }
   }, [userId, weeklyGoals]);
 
+  useEffect(() => {
+    if (activityHydratedRef.current && userId) {
+      window.localStorage.setItem(getTrackerActivityKey(userId), JSON.stringify(activityEvents));
+    }
+  }, [activityEvents, userId]);
+
+  useEffect(() => {
+    if (!activityHydratedRef.current || !userId || jobs.length === 0) return;
+
+    setActivityEvents((prev) => {
+      const existingJobIds = new Set(prev.map((event) => event.jobId).filter(Boolean));
+      const existingSignatures = new Set(
+        prev.map((event) => `${event.date}|${event.role}|${event.company}`.toLowerCase())
+      );
+
+      const additions = jobs
+        .filter((job) => {
+          const eventDate = job.date_tracked || toLocalDateKey(currentDate);
+          const signature = `${eventDate}|${job.role}|${job.company}`.toLowerCase();
+          return !existingJobIds.has(job.id) && !existingSignatures.has(signature);
+        })
+        .map((job) => {
+          const eventDate = job.date_tracked || toLocalDateKey(currentDate);
+          return {
+            id: `tracked-${job.id}-${eventDate}`,
+            jobId: job.id,
+            role: job.role,
+            company: job.company,
+            date: eventDate,
+            source: "backfill" as const,
+          };
+        });
+
+      return additions.length > 0 ? [...prev, ...additions] : prev;
+    });
+  }, [currentDate, jobs, userId]);
+
   const handleAddJob = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roleInput.trim() || !companyInput.trim()) return;
 
+    const role = roleInput.trim();
+    const company = companyInput.trim();
     setIsSubmitting(true);
     setNotice("");
     try {
@@ -139,14 +229,31 @@ export default function TrackerDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-user-id": userId },
         body: JSON.stringify({
-          role: roleInput.trim(),
-          company: companyInput.trim(),
+          role,
+          company,
           application_deadline: deadlineInput || null,
           deadline_date: deadlineInput || null,
         }),
       });
 
       if (res.ok) {
+        const createdJob = await res.json();
+        const eventDate = createdJob.date_tracked || toLocalDateKey(currentDate);
+        const eventId = createdJob.id ? `manual-${createdJob.id}-${eventDate}` : `manual-${Date.now()}`;
+        setActivityEvents((prev) => {
+          if (prev.some((event) => event.id === eventId)) return prev;
+          return [
+            ...prev,
+            {
+              id: eventId,
+              jobId: createdJob.id,
+              role: createdJob.role || role,
+              company: createdJob.company || company,
+              date: eventDate,
+              source: "manual",
+            },
+          ];
+        });
         setRoleInput("");
         setCompanyInput("");
         setDeadlineInput("");
@@ -324,21 +431,16 @@ export default function TrackerDashboard() {
     weekStart.setHours(0, 0, 0, 0);
     weekStart.setDate(currentDate.getDate() - currentDate.getDay());
 
-    return jobs.filter((job) => {
-      if (!job.date_tracked) return false;
-      const trackedDate = new Date(`${job.date_tracked}T00:00:00`);
+    return activityEvents.filter((event) => {
+      if (!event.date) return false;
+      const trackedDate = new Date(`${event.date}T00:00:00`);
       return trackedDate >= weekStart;
     }).length;
-  }, [currentDate, jobs]);
+  }, [activityEvents, currentDate]);
 
   const skillCount = useMemo(() => {
-    if (!userId) return 0;
-    const profile = loadCareerProfile(userId, user);
-    return profile.skills
-      .split(",")
-      .map((skill) => skill.trim())
-      .filter(Boolean).length;
-  }, [user, userId]);
+    return profileSkills.length;
+  }, [profileSkills]);
 
   const applicationProgress = useMemo(() => {
     if (jobs.length === 0) return 0;
@@ -360,7 +462,7 @@ export default function TrackerDashboard() {
   const roadmapPercent = Math.round((applicationProgress + weeklyGoalPercent) / (weeklyGoals.length > 0 ? 2 : 1));
 
   const streakCount = useMemo(() => {
-    const trackedDays = new Set(jobs.map((job) => job.date_tracked).filter(Boolean));
+    const trackedDays = new Set(activityEvents.map((event) => event.date).filter(Boolean));
     let streak = 0;
     const cursor = new Date(currentDate);
     cursor.setHours(0, 0, 0, 0);
@@ -371,7 +473,7 @@ export default function TrackerDashboard() {
     }
 
     return streak;
-  }, [currentDate, jobs]);
+  }, [activityEvents, currentDate]);
 
   const progressCards = [
     {
@@ -427,10 +529,10 @@ export default function TrackerDashboard() {
       return {
         key,
         label: formatShortWeekday(date),
-        count: jobs.filter((job) => job.date_tracked === key).length,
+        count: activityEvents.filter((event) => event.date === key).length,
       };
     });
-  }, [currentDate, jobs]);
+  }, [activityEvents, currentDate]);
 
   const weeklyActivityMax = Math.max(1, ...weeklyActivity.map((day) => day.count));
   const lineChartPoints = weeklyActivity

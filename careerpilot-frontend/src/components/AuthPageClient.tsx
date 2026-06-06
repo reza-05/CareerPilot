@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, LockKeyhole, Mail } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, Mail } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -26,17 +26,36 @@ export default function AuthPageClient() {
   const requestedMode = searchParams.get("mode");
   const initialMode = requestedMode === "login" ? "login" : "signup";
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
-  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(initialMode === "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const passwordRules = [
+    { label: "8+ characters", valid: password.length >= 8 },
+    { label: "Uppercase", valid: /[A-Z]/.test(password) },
+    { label: "Lowercase", valid: /[a-z]/.test(password) },
+    { label: "Number", valid: /\d/.test(password) },
+    { label: "Special character", valid: /[^A-Za-z0-9]/.test(password) },
+  ];
+  const missingPasswordRules = passwordRules.filter((rule) => !rule.valid).map((rule) => rule.label);
+  const passwordTouched = password.length > 0;
+  const confirmPasswordTouched = confirmPassword.length > 0;
+  const passwordStrong = missingPasswordRules.length === 0;
+  const confirmPasswordMatches = confirmPasswordTouched && password === confirmPassword;
+  const signupReady = Boolean(email.trim()) && passwordStrong && confirmPasswordMatches;
 
   const goToCvUpload = () => router.push("/");
 
   const changeMode = (mode: AuthMode) => {
     setAuthMode(mode);
+    setShowEmailForm(mode === "signup");
     setAuthNotice(null);
+    setValidationError(null);
+    setConfirmPassword("");
   };
 
   const handleGoogleSignIn = async () => {
@@ -53,9 +72,24 @@ export default function AuthPageClient() {
   const handleEmailAuth = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setAuthNotice(null);
-    setAuthBusy(true);
+    setValidationError(null);
 
     const normalizedEmail = email.trim();
+
+    if (authMode === "signup") {
+      const missingRules = passwordRules.filter((rule) => !rule.valid).map((rule) => rule.label);
+      if (missingRules.length > 0) {
+        setValidationError(`Password must include: ${missingRules.join(", ")}.`);
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setValidationError("Passwords do not match. Please confirm the same password.");
+        return;
+      }
+    }
+
+    setAuthBusy(true);
     const success =
       authMode === "signup"
         ? await signUpWithEmail(normalizedEmail, password)
@@ -85,6 +119,8 @@ export default function AuthPageClient() {
       setAuthNotice("Password reset email sent. Please check your inbox.");
     }
   };
+
+  const emailFormVisible = authMode === "signup" || showEmailForm;
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-slate-950">
@@ -134,19 +170,21 @@ export default function AuthPageClient() {
                   </h1>
                   <p className="mt-3 text-sm font-semibold leading-6 text-slate-500">
                     {authMode === "signup"
-                      ? "Use Google or email to start your personalized career workspace."
-                      : "Use Google or email to continue to your workspace."}
+                      ? "Create your account with email and password."
+                      : "Continue with Google or use your email and password."}
                   </p>
                 </div>
 
-                <div className="mb-5 grid grid-cols-2 rounded-xl bg-[#EFF6FF] p-1">
+                <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-blue-100 bg-white p-1 shadow-sm shadow-blue-100/70">
                   {(["signup", "login"] as const).map((mode) => (
                     <button
                       key={mode}
                       type="button"
                       onClick={() => changeMode(mode)}
-                      className={`rounded-lg px-3 py-3 text-sm font-black transition ${
-                        authMode === mode ? "bg-white text-[#1E3A8A] shadow-sm" : "text-slate-500 hover:text-[#1E3A8A]"
+                      className={`rounded-xl border px-3 py-3 text-sm font-black transition ${
+                        authMode === mode
+                          ? "border-blue-100 bg-white text-[#1E3A8A] shadow-md shadow-blue-100/70"
+                          : "border-transparent bg-white text-slate-500 hover:bg-blue-50 hover:text-[#1E3A8A]"
                       }`}
                     >
                       {mode === "signup" ? "Sign Up" : "Log In"}
@@ -154,39 +192,47 @@ export default function AuthPageClient() {
                   ))}
                 </div>
 
-                <div className="space-y-3">
-                  <button
-                    type="button"
-                    onClick={handleGoogleSignIn}
-                    disabled={authBusy}
-                    className="grid h-13 w-full grid-cols-[24px_1fr_24px] items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-70"
-                  >
-                    <GoogleIcon />
-                    <span>Continue with Google</span>
-                    <span />
-                  </button>
+                {authMode === "login" && (
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={handleGoogleSignIn}
+                      disabled={authBusy}
+                      className="grid h-13 w-full grid-cols-[24px_1fr_24px] items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 disabled:opacity-70"
+                    >
+                      <GoogleIcon />
+                      <span>Continue with Google</span>
+                      <span />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowEmailForm((current) => !current);
-                      setAuthNotice(null);
-                    }}
-                    className="grid h-13 w-full grid-cols-[24px_1fr_24px] items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
-                  >
-                    <Mail className="h-5 w-5 text-[#1E3A8A]" />
-                    <span>Continue with email</span>
-                    <span />
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEmailForm((current) => !current);
+                        setAuthNotice(null);
+                      }}
+                      className="grid h-13 w-full grid-cols-[24px_1fr_24px] items-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-black text-slate-800 shadow-sm transition hover:border-blue-200 hover:bg-blue-50"
+                    >
+                      <Mail className="h-5 w-5 text-[#1E3A8A]" />
+                      <span>Continue with email</span>
+                      <span />
+                    </button>
+                  </div>
+                )}
 
-                {showEmailForm && (
+                {emailFormVisible && (
                   <>
-                    <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                      <span className="h-px flex-1 bg-slate-200" />
-                      email access
-                      <span className="h-px flex-1 bg-slate-200" />
-                    </div>
+                    {authMode === "login" ? (
+                      <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                        <span className="h-px flex-1 bg-slate-200" />
+                        email access
+                        <span className="h-px flex-1 bg-slate-200" />
+                      </div>
+                    ) : (
+                      <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#1E3A8A]">
+                        Sign up with email and password.
+                      </div>
+                    )}
 
                     <form onSubmit={handleEmailAuth} className="space-y-4">
                       <label className="block">
@@ -205,37 +251,114 @@ export default function AuthPageClient() {
                       </label>
 
                       <label className="block">
-                        <span className="mb-1.5 flex items-center justify-between gap-3">
-                          <span className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
-                            <LockKeyhole className="h-3.5 w-3.5" />
-                            Password
-                          </span>
-                          {authMode === "login" && (
-                            <button
-                              type="button"
-                              onClick={handlePasswordReset}
-                              disabled={authBusy}
-                              className="text-xs font-black text-[#1E3A8A] transition hover:text-[#1D4ED8] disabled:opacity-60"
-                            >
-                              Forgot password?
-                            </button>
-                          )}
+                        <span className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                          <LockKeyhole className="h-3.5 w-3.5" />
+                          Password
                         </span>
-                        <input
-                          type="password"
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                          required
-                          minLength={6}
-                          className="h-12 w-full rounded-xl border border-blue-100 bg-[#F8FAFC] px-4 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#1E3A8A] focus:bg-white"
-                          placeholder="At least 6 characters"
-                        />
+                        <div className="relative">
+                          <input
+                            type="password"
+                            value={password}
+                            onChange={(event) => {
+                              setPassword(event.target.value);
+                              setValidationError(null);
+                            }}
+                            required
+                            minLength={authMode === "signup" ? 8 : 6}
+                            className={`h-12 w-full rounded-xl border bg-[#F8FAFC] px-4 pr-11 text-sm font-semibold text-slate-800 outline-none transition focus:bg-white ${
+                              authMode === "signup" && passwordTouched
+                                ? passwordStrong
+                                  ? "border-emerald-300 focus:border-emerald-500"
+                                  : "border-red-300 focus:border-red-500"
+                                : "border-blue-100 focus:border-[#1E3A8A]"
+                            }`}
+                            placeholder={authMode === "signup" ? "8+ chars with A-z, 0-9, symbol" : "Enter your password"}
+                          />
+                          {authMode === "signup" && passwordTouched && (
+                            passwordStrong ? (
+                              <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
+                            ) : (
+                              <AlertCircle className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+                            )
+                          )}
+                        </div>
                       </label>
+
+                      {authMode === "signup" && (
+                        <>
+                          <p className={`-mt-2 text-xs font-black ${
+                            passwordStrong ? "text-emerald-600" : "text-red-600"
+                          }`}>
+                            {passwordStrong
+                              ? "Password strength ready."
+                              : `Missing: ${missingPasswordRules.join(", ")}.`}
+                          </p>
+
+                          <label className="block">
+                            <span className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                              <LockKeyhole className="h-3.5 w-3.5" />
+                              Confirm Password
+                            </span>
+                            <div className="relative">
+                              <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(event) => {
+                                  setConfirmPassword(event.target.value);
+                                  setValidationError(null);
+                                }}
+                                required
+                                minLength={8}
+                                className={`h-12 w-full rounded-xl border bg-[#F8FAFC] px-4 pr-11 text-sm font-semibold text-slate-800 outline-none transition focus:bg-white ${
+                                  confirmPasswordTouched
+                                    ? confirmPasswordMatches
+                                      ? "border-emerald-300 focus:border-emerald-500"
+                                      : "border-red-300 focus:border-red-500"
+                                    : "border-blue-100 focus:border-[#1E3A8A]"
+                                }`}
+                                placeholder="Retype the same password"
+                              />
+                              {confirmPasswordTouched && (
+                                confirmPasswordMatches ? (
+                                  <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
+                                ) : (
+                                  <AlertCircle className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+                                )
+                              )}
+                            </div>
+                          </label>
+
+                          {confirmPasswordTouched && (
+                            <p className={`-mt-2 text-xs font-black ${
+                              confirmPasswordMatches ? "text-emerald-600" : "text-red-600"
+                            }`}>
+                              {confirmPasswordMatches ? "Passwords match." : "Passwords do not match."}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {authMode === "login" && (
+                        <div className="-mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handlePasswordReset}
+                            disabled={authBusy}
+                            className="text-xs font-black text-[#1E3A8A] transition hover:text-[#1D4ED8] disabled:opacity-60"
+                          >
+                            Forgot password?
+                          </button>
+                        </div>
+                      )}
 
                       <button
                         type="submit"
-                        disabled={authBusy}
-                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] text-sm font-black text-white transition hover:bg-[#1D4ED8] disabled:opacity-70"
+                        disabled={authBusy || (authMode === "signup" && !signupReady)}
+                        className={`inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl text-sm font-black transition ${
+                          authMode === "signup" && !signupReady
+                            ? "cursor-not-allowed bg-slate-100 text-slate-400"
+                            : "bg-[#1E3A8A] text-white hover:bg-[#1D4ED8] disabled:opacity-70"
+                        }`}
                       >
                         {authBusy ? "Please wait..." : authMode === "signup" ? "Create Account" : "Log In"}
                         <ArrowRight className="h-4 w-4" />
@@ -247,6 +370,12 @@ export default function AuthPageClient() {
                 {authError && (
                   <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700">
                     {authError}
+                  </div>
+                )}
+
+                {validationError && (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold leading-6 text-red-700">
+                    {validationError}
                   </div>
                 )}
 

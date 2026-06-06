@@ -115,3 +115,32 @@ export function saveCareerProfile(userId: string, profile: CareerProfile) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(getCareerProfileKey(userId), JSON.stringify(profile));
 }
+
+export function normalizeSkillList(skills: unknown): string[] {
+  const rawSkills = Array.isArray(skills)
+    ? skills
+    : typeof skills === "string"
+      ? skills.split(/[,;\n]/)
+      : [];
+
+  const seen = new Set<string>();
+  return rawSkills
+    .map((skill) => String(skill).trim())
+    .filter(Boolean)
+    .filter((skill) => {
+      const key = skill.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+export function mergeProfileSkills(profile: CareerProfile, skills: unknown): CareerProfile {
+  const normalizedSkills = normalizeSkillList(skills);
+  if (normalizedSkills.length === 0) return profile;
+
+  return {
+    ...profile,
+    skills: normalizedSkills.join(", "),
+  };
+}

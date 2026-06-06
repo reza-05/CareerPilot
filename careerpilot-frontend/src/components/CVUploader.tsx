@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { markProfileReady } from '@/lib/userSession';
-import { loadCareerProfile, saveCareerProfile } from '@/lib/profileData';
+import { loadCvUploadState, markCvUploaded } from '@/lib/userSession';
+import { loadCareerProfile, normalizeSkillList, saveCareerProfile } from '@/lib/profileData';
 
 // Explicit interface to fix the "IntrinsicAttributes" error in page.tsx
 interface CVUploaderProps {
@@ -13,11 +13,20 @@ interface CVUploaderProps {
 }
 
 export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
+  const router = useRouter();
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
-  const router = useRouter();
-  const { user } = useAuth();
+  const [cvState, setCvState] = useState(() => loadCvUploadState(user?.uid));
+  const hasSavedResume = Boolean(cvState.uploaded);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCvState(loadCvUploadState(user?.uid));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [user?.uid]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -48,15 +57,15 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
       const data = await response.json();
 
       if (response.ok && data?.success) {
-        if (Array.isArray(data.skills) && data.skills.length > 0) {
-          const profile = loadCareerProfile(user.uid, user);
-          saveCareerProfile(user.uid, {
-            ...profile,
-            skills: data.skills.join(", "),
-          });
-        }
-        markProfileReady(user.uid);
-        onUploadSuccess("Resume Vectorized Successfully");
+        const detectedSkills = normalizeSkillList(data.skills);
+        const profile = loadCareerProfile(user.uid, user);
+        saveCareerProfile(user.uid, {
+          ...profile,
+          skills: detectedSkills.join(", "),
+        });
+        markCvUploaded(user.uid, file.name, detectedSkills);
+        setCvState(loadCvUploadState(user.uid));
+        onUploadSuccess("Resume saved successfully");
         router.push('/job-hunter');
       } else {
         setErrorNotification(data?.detail || "We could not prepare your resume right now. Please try again.");
@@ -89,18 +98,34 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
           </div>
         )}
         <div className="bg-white border border-slate-200/60 rounded-2xl p-6 sm:p-10 shadow-sm">
-          <h2 className="text-[#1E3A8A] font-semibold text-2xl tracking-tight text-center mb-2">Upload Your Resume</h2>
+          <h2 className="text-[#1E3A8A] font-semibold text-2xl tracking-tight text-center mb-2">
+            {hasSavedResume ? "Your Resume Is Ready" : "Upload Your Resume"}
+          </h2>
+          {hasSavedResume && (
+            <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
+              <span className="font-bold text-[#1E3A8A]">Saved CV active.</span> Upload a new PDF when you want to replace it.
+            </div>
+          )}
           <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer relative">
             <input type="file" accept=".pdf" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" />
-            <p className="text-slate-700 font-medium text-sm">{file ? file.name : "Drag and drop PDF here"}</p>
+            <p className="text-slate-700 font-medium text-sm">
+              {file ? file.name : hasSavedResume ? "Upload a new PDF to replace your saved CV" : "Drag and drop PDF here"}
+            </p>
           </div>
           {file && (
             <button onClick={handleUpload} className="mt-6 bg-[#1E3A8A] text-white font-bold py-3 px-6 rounded-xl w-full">
-              Process Resume
+              {hasSavedResume ? "Replace Saved Resume" : "Process Resume"}
             </button>
           )}
+          {hasSavedResume && !file && (
+            <Link href="/job-hunter" className="mt-6 block rounded-xl bg-[#1E3A8A] px-6 py-3 text-center text-sm font-bold text-white">
+              Continue to Job Search
+            </Link>
+          )}
           <div className="mt-5 pt-4 border-t border-slate-100 text-center">
-            <Link href="/cv-builder" className="text-[#1E3A8A] hover:underline font-semibold text-sm">Create CV Manually</Link>
+            <Link href="/cv-builder" className="text-[#1E3A8A] hover:underline font-semibold text-sm">
+              {hasSavedResume ? "Update Profile Manually" : "Create CV Manually"}
+            </Link>
           </div>
         </div>
       </div>

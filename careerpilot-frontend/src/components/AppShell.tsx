@@ -103,7 +103,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
               aria-label="Open dashboard"
               title="Dashboard"
             >
-              {user?.displayName ? user.displayName.slice(0, 1).toUpperCase() : <UserRound size={18} />}
+              <UserRound size={18} strokeWidth={2.4} />
             </Link>
           </div>
         </nav>

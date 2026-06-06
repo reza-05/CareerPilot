@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, KeyboardEvent } from "react";
+import React, { useEffect, useState, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
-import { markProfileReady } from "@/lib/userSession";
-import { loadCareerProfile, saveCareerProfile } from "@/lib/profileData";
+import { markCvUploaded } from "@/lib/userSession";
+import { loadCareerProfile, mergeProfileSkills, normalizeSkillList, saveCareerProfile } from "@/lib/profileData";
 
 export default function CVBuilderPage() {
   const router = useRouter();
@@ -14,6 +14,13 @@ export default function CVBuilderPage() {
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState("");
   const [formData, setFormData] = useState(() => loadCareerProfile(user?.uid, user));
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setFormData(loadCareerProfile(user?.uid, user));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -89,7 +96,10 @@ export default function CVBuilderPage() {
       });
       const data = await response.json();
       if (data.success) {
-        markProfileReady(user.uid);
+        const detectedSkills = normalizeSkillList(data.skills);
+        const savedProfile = mergeProfileSkills(formData, detectedSkills.length > 0 ? detectedSkills : payload.skills);
+        saveCareerProfile(user.uid, savedProfile);
+        markCvUploaded(user.uid, "Manual CV profile", normalizeSkillList(savedProfile.skills));
         router.push("/job-hunter");
       }
       else alert("Submission failed.");

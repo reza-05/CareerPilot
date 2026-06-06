@@ -75,18 +75,18 @@ export default function WelcomePage() {
               <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
-            <div className="flex items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-2 rounded-2xl border border-blue-100 bg-white p-1 shadow-sm shadow-blue-100/70 sm:gap-2">
               <button
                 type="button"
                 onClick={() => goToAuth("login")}
-                className="hidden rounded-xl px-4 py-2.5 text-sm font-black text-[#1E3A8A] transition hover:bg-blue-50 sm:inline-flex lg:text-base"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-black text-[#1E3A8A] ring-1 ring-transparent transition hover:bg-blue-50 hover:ring-blue-100 sm:px-6 lg:text-base"
               >
                 Log In
               </button>
               <button
                 type="button"
                 onClick={() => goToAuth("signup")}
-                className="rounded-xl border-2 border-[#1E3A8A] bg-white px-4 py-2.5 text-sm font-black text-[#1E3A8A] transition hover:bg-[#1E3A8A] hover:text-white sm:px-7 lg:px-10 lg:py-3 lg:text-base"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-black text-[#1E3A8A] ring-1 ring-transparent transition hover:bg-blue-50 hover:ring-blue-100 sm:px-7 lg:px-10 lg:text-base"
               >
                 Sign Up
               </button>
@@ -94,7 +94,7 @@ export default function WelcomePage() {
           )}
         </header>
 
-        <div className="relative z-10 mx-auto grid min-h-[calc(100vh-7rem)] max-w-[1500px] items-center gap-10 px-5 pb-14 pt-5 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-14 lg:pb-20">
+        <div className="relative z-10 mx-auto grid min-h-[calc(100vh-7rem)] max-w-[1500px] items-start gap-10 px-5 pb-14 pt-2 sm:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:px-14 lg:pb-20 lg:pt-8">
           <div className="max-w-3xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-[#EFF6FF] px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#1E3A8A]">
               <Sparkles className="h-4 w-4" />
@@ -183,7 +183,7 @@ export default function WelcomePage() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              ["01", "Create account", "Google or email/password authentication."],
+              ["01", "Create account", "Secure login with Google or email."],
               ["02", "Prepare profile", "Upload a resume or build a CV manually."],
               ["03", "Run the workflow", "Jobs, assistant, tracker, and deadlines."],
             ].map(([number, title, copy]) => (

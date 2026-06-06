@@ -48,7 +48,7 @@ function getFriendlyAuthError(errorCode: string, mode: "login" | "signup") {
   }
 
   if (errorCode === "auth/weak-password") {
-    return "Please use a password with at least 6 characters.";
+    return "Please use a stronger password with at least 8 characters, uppercase, lowercase, number, and special character.";
   }
 
   if (errorCode === "auth/invalid-email") {
