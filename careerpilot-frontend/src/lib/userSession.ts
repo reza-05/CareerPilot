@@ -65,6 +65,50 @@ export function markCvUploaded(userId: string, fileName?: string, skills: string
   );
 }
 
+export function restoreCvUploadState(userId: string, fileName?: string, skills: string[] = [], updatedAt?: string) {
+  if (typeof window === "undefined") return;
+
+  markProfileReady(userId);
+  window.localStorage.setItem(
+    getCvUploadStateKey(userId),
+    JSON.stringify({
+      uploaded: true,
+      fileName: fileName || "Saved CV",
+      skills,
+      updatedAt: updatedAt || new Date().toISOString(),
+    }),
+  );
+}
+
+export async function syncCvUploadStateFromServer(userId?: string | null): Promise<CvUploadState> {
+  if (!userId || typeof window === "undefined") {
+    return emptyCvUploadState;
+  }
+
+  try {
+    const response = await fetch("/api/cv-processor", {
+      method: "GET",
+      headers: {
+        "x-user-id": userId,
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) return loadCvUploadState(userId);
+
+    const data = await response.json();
+    if (data?.success && data?.uploaded) {
+      const skills = Array.isArray(data.skills) ? data.skills : [];
+      restoreCvUploadState(userId, data.fileName, skills, data.updatedAt);
+      return loadCvUploadState(userId);
+    }
+  } catch {
+    // Keep the existing browser state if the local app service is temporarily unreachable.
+  }
+
+  return loadCvUploadState(userId);
+}
+
 export function loadCvUploadState(userId?: string | null): CvUploadState {
   if (!userId || typeof window === "undefined") {
     return emptyCvUploadState;

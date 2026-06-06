@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { loadCvUploadState, markCvUploaded } from '@/lib/userSession';
+import { loadCvUploadState, markCvUploaded, syncCvUploadStateFromServer } from '@/lib/userSession';
 import { loadCareerProfile, normalizeSkillList, saveCareerProfile } from '@/lib/profileData';
 
 // Explicit interface to fix the "IntrinsicAttributes" error in page.tsx
@@ -24,9 +24,27 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setCvState(loadCvUploadState(user?.uid));
+      if (user?.uid) {
+        void syncCvUploadStateFromServer(user.uid).then((syncedState) => {
+          if (!syncedState.uploaded) return;
+
+          setCvState(syncedState);
+          const syncedSkills = normalizeSkillList(syncedState.skills);
+          if (syncedSkills.length > 0) {
+            const profile = loadCareerProfile(user.uid, user);
+            const existingSkills = normalizeSkillList(profile.skills);
+            if (existingSkills.join("|") !== syncedSkills.join("|")) {
+              saveCareerProfile(user.uid, {
+                ...profile,
+                skills: syncedSkills.join(", "),
+              });
+            }
+          }
+        });
+      }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [user?.uid]);
+  }, [user]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {

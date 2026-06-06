@@ -1,22 +1,42 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input"; 
-import { Bot, Loader2, Send, Sparkles, Trash2, UserRound } from "lucide-react";
+import { CalendarCheck2, DollarSign, ExternalLink, Loader2, MapPin, Percent, Send, Sparkles, Trash2, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { getAssistantChatStateKey } from "@/lib/userSession";
 
 type ChatMessage = { role: string; content: string };
 
+export type JobAssistantContext = {
+  title: string;
+  company: string;
+  location?: string;
+  salaryRange?: string;
+  applicationDeadline?: string;
+  matchPercent?: number;
+  matchReason?: string;
+  url?: string;
+};
+
 type AssistantChatState = {
   messages: ChatMessage[];
   input: string;
+  activeJobContext?: JobAssistantContext | null;
 };
 
 const emptyAssistantChatState: AssistantChatState = {
   messages: [],
   input: "",
+  activeJobContext: null,
 };
+
+function hasUsefulValue(value?: string) {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return Boolean(normalized) && normalized !== "not specified" && normalized !== "open";
+}
 
 function loadAssistantChatState(userId?: string | null): AssistantChatState {
   if (!userId || typeof window === "undefined") return emptyAssistantChatState;
@@ -37,16 +57,31 @@ function loadAssistantChatState(userId?: string | null): AssistantChatState {
 export default function AIChat({
   initialPrompt = "",
   promptVersion = 0,
+  jobContext = null,
+  compact = false,
 }: {
   initialPrompt?: string;
   promptVersion?: number;
+  jobContext?: JobAssistantContext | null;
+  compact?: boolean;
 }) {
   const { user } = useAuth();
   const initialChatState = loadAssistantChatState(user?.uid);
   const [messages, setMessages] = useState<ChatMessage[]>(initialChatState.messages);
   const [input, setInput] = useState(initialChatState.input);
+  const [activeJobContext, setActiveJobContext] = useState<JobAssistantContext | null>(initialChatState.activeJobContext || null);
   const [loading, setLoading] = useState(false);
   const lastPromptVersion = useRef(-1);
+
+  useEffect(() => {
+    if (!jobContext) return;
+
+    const timer = window.setTimeout(() => {
+      setActiveJobContext(jobContext);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [jobContext]);
 
   useEffect(() => {
     if (initialPrompt && promptVersion !== lastPromptVersion.current) {
@@ -60,9 +95,52 @@ export default function AIChat({
 
     window.localStorage.setItem(
       getAssistantChatStateKey(user.uid),
-      JSON.stringify({ messages, input }),
+      JSON.stringify({ messages, input, activeJobContext }),
     );
-  }, [input, messages, user?.uid]);
+  }, [activeJobContext, input, messages, user?.uid]);
+
+  const contextLabel = activeJobContext
+    ? `${activeJobContext.title}${activeJobContext.company ? ` at ${activeJobContext.company}` : ""}`
+    : "";
+
+  const visibleJobDetails = activeJobContext
+    ? [
+        { label: "Company", value: activeJobContext.company, icon: UserRound },
+        { label: "Location", value: activeJobContext.location, icon: MapPin },
+        { label: "Salary", value: activeJobContext.salaryRange, icon: DollarSign },
+        { label: "Deadline", value: activeJobContext.applicationDeadline, icon: CalendarCheck2 },
+        {
+          label: "Match",
+          value: typeof activeJobContext.matchPercent === "number" ? `${activeJobContext.matchPercent}%` : "",
+          icon: Percent,
+        },
+      ].filter((item) => hasUsefulValue(item.value))
+    : [];
+
+  const buildContextAwareQuery = (rawQuery: string) => {
+    if (!activeJobContext) return rawQuery;
+
+    const details = [
+      `Role: ${activeJobContext.title}`,
+      activeJobContext.company ? `Company: ${activeJobContext.company}` : "",
+      activeJobContext.location ? `Location: ${activeJobContext.location}` : "",
+      activeJobContext.salaryRange ? `Salary: ${activeJobContext.salaryRange}` : "",
+      activeJobContext.applicationDeadline ? `Deadline: ${activeJobContext.applicationDeadline}` : "",
+      typeof activeJobContext.matchPercent === "number" ? `Match score: ${activeJobContext.matchPercent}%` : "",
+      activeJobContext.matchReason ? `Current fit insight: ${activeJobContext.matchReason}` : "",
+      activeJobContext.url ? `Job link: ${activeJobContext.url}` : "",
+    ].filter(Boolean);
+
+    return [
+      "Please answer the user's question using their CV/profile and the selected job details below.",
+      "Keep the answer practical, professional, and easy for a job seeker to act on.",
+      "",
+      "Selected job:",
+      details.join("\n"),
+      "",
+      `User question: ${rawQuery}`,
+    ].join("\n");
+  };
 
   const sendMessage = async () => {
     const trimmedInput = input.trim();
@@ -82,7 +160,7 @@ export default function AIChat({
         method: "POST",
         headers: { "Content-Type": "application/json", "x-user-id": user?.uid || "" },
         body: JSON.stringify({
-          query: trimmedInput,
+          query: buildContextAwareQuery(trimmedInput),
           history: messages,
         }),
       });
@@ -105,6 +183,7 @@ export default function AIChat({
   const clearChat = () => {
     setMessages([]);
     setInput("");
+    setActiveJobContext(null);
     if (user?.uid) {
       window.localStorage.removeItem(getAssistantChatStateKey(user.uid));
     }
@@ -114,18 +193,20 @@ export default function AIChat({
     <div className="w-full overflow-hidden rounded-2xl border border-blue-200/80 bg-[#F7FAFF] shadow-2xl shadow-blue-100/80 ring-1 ring-white">
       <div className="flex flex-col gap-3 border-b border-blue-100 bg-[#EEF4FF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1E3A8A] text-white shadow-sm">
-            <Bot size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-blue-100">
+            <Image src="/brand/assist.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" />
           </div>
           <div>
             <h2 className="text-base font-bold tracking-tight text-slate-950">CareerPilot Assistant</h2>
-            <p className="text-xs font-medium text-slate-500">CV-grounded career guidance</p>
+            <p className="text-xs font-medium text-slate-500">
+              {contextLabel ? `Discussing ${contextLabel}` : "CV-grounded career guidance"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-bold text-[#1E3A8A] shadow-sm sm:flex">
             <Sparkles size={13} />
-            CV Context
+            {activeJobContext ? "Job Context" : "CV Context"}
           </div>
           {messages.length > 0 && (
             <button
@@ -140,15 +221,66 @@ export default function AIChat({
         </div>
       </div>
 
-      <div className="h-[min(58vh,420px)] min-h-[340px] overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5 md:h-[420px] lg:h-[460px]">
-        {messages.length === 0 && !loading && (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1E3A8A]">
-              <Sparkles size={24} />
+      <div className={`${compact ? "h-[min(62vh,520px)] min-h-[360px]" : "h-[min(58vh,420px)] min-h-[340px] md:h-[420px] lg:h-[460px]"} overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5`}>
+        {activeJobContext && (
+          <section className="mb-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/60">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#1E3A8A]">Selected Job</p>
+                <h3 className="mt-1 line-clamp-2 text-sm font-black leading-5 text-slate-950">
+                  {activeJobContext.title}
+                </h3>
+              </div>
+              {activeJobContext.url && (
+                <a
+                  href={activeJobContext.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-[#1E3A8A] transition hover:bg-blue-100"
+                  aria-label="Open selected job"
+                >
+                  <ExternalLink size={16} />
+                </a>
+              )}
             </div>
-            <p className="text-sm font-bold text-slate-800">Ask about fit, gaps, roadmap, or cover letters.</p>
+
+            {visibleJobDetails.length > 0 && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {visibleJobDetails.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className="flex min-w-0 items-center gap-2 rounded-xl border border-blue-50 bg-[#F8FBFF] px-3 py-2">
+                      <Icon className="h-4 w-4 shrink-0 text-[#1E3A8A]" />
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{item.label}</p>
+                        <p className="truncate text-xs font-bold text-slate-700">{item.value}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeJobContext.matchReason && (
+              <p className="mt-3 line-clamp-3 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-slate-600">
+                {activeJobContext.matchReason}
+              </p>
+            )}
+          </section>
+        )}
+
+        {messages.length === 0 && !loading && (
+          <div className="flex h-[calc(100%-6rem)] min-h-[220px] flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1E3A8A]">
+              <Image src="/brand/assist.png" alt="" width={34} height={34} className="h-8 w-8 object-contain" />
+            </div>
+            <p className="text-sm font-bold text-slate-800">
+              {activeJobContext ? "Ask about this role, your fit, gaps, or application plan." : "Ask about fit, gaps, roadmap, or cover letters."}
+            </p>
             <p className="mt-2 max-w-sm text-xs leading-5 text-slate-500">
-              Your answers are grounded in the CV or profile you processed earlier.
+              {activeJobContext
+                ? "CareerPilot will use this job and your saved CV profile together."
+                : "Your answers are grounded in the CV or profile you processed earlier."}
             </p>
           </div>
         )}
@@ -160,7 +292,7 @@ export default function AIChat({
               <div key={i} className={`flex items-start gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
                 {!isUser && (
                   <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1E3A8A] text-white">
-                    <Bot size={16} />
+                    <Image src="/brand/assist.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain brightness-0 invert" />
                   </div>
                 )}
                 <div className={`max-w-[82%] sm:max-w-[78%] ${isUser ? "items-end" : "items-start"} flex min-w-0 flex-col`}>
@@ -189,11 +321,11 @@ export default function AIChat({
           {loading && (
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1E3A8A] text-white">
-                <Bot size={16} />
+                <Image src="/brand/assist.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain brightness-0 invert" />
               </div>
               <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-500 shadow-sm">
                 <Loader2 className="animate-spin text-[#1E3A8A]" size={16} />
-                Thinking with your CV context...
+                Preparing a tailored answer...
               </div>
             </div>
           )}

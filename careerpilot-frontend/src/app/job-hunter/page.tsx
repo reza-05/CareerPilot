@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar } from "lucide-react";
+import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar, MessageSquareText, X } from "lucide-react";
 import { DM_Sans } from 'next/font/google';
+import AIChat, { type JobAssistantContext } from "@/components/AIChat";
 import { useAuth } from "@/components/AuthProvider";
-import { getJobHunterStateKey, hasProfileReady } from "@/lib/userSession";
+import { getJobHunterStateKey, hasProfileReady, syncCvUploadStateFromServer } from "@/lib/userSession";
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -64,15 +66,26 @@ export default function JobHunter() {
   const [searchQuery, setSearchQuery] = useState(initialSavedState.searchQuery);
   const [profileReady, setProfileReady] = useState(false);
   const [statusMessage, setStatusMessage] = useState(initialSavedState.statusMessage);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [selectedAssistantJob, setSelectedAssistantJob] = useState<JobAssistantContext | null>(null);
+  const [assistantPrompt, setAssistantPrompt] = useState({ text: "", version: 0 });
   
   // Clean string index signature matching tracking states safely
   const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>(initialSavedState.trackingStates);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const isReady = hasProfileReady(user?.uid);
-      setProfileReady(isReady);
-      setStatusMessage((current) => (isReady ? (current === PROFILE_REQUIRED_MESSAGE ? "" : current) : PROFILE_REQUIRED_MESSAGE));
+      const updateProfileAccess = async () => {
+        const syncedState = hasProfileReady(user?.uid)
+          ? null
+          : await syncCvUploadStateFromServer(user?.uid);
+        const isReady = hasProfileReady(user?.uid) || Boolean(syncedState?.uploaded);
+
+        setProfileReady(isReady);
+        setStatusMessage((current) => (isReady ? (current === PROFILE_REQUIRED_MESSAGE ? "" : current) : PROFILE_REQUIRED_MESSAGE));
+      };
+
+      void updateProfileAccess();
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -153,6 +166,29 @@ export default function JobHunter() {
         .replace(/\b\w/g, (char) => char.toUpperCase());
     } catch {
       return "Job Source";
+    }
+  };
+
+  const buildJobAssistantContext = (job: JobResult, displayCompany: string): JobAssistantContext => ({
+    title: job.title,
+    company: displayCompany,
+    location: job.location || "Remote",
+    salaryRange: job.salaryRange || "Not specified",
+    applicationDeadline: job.applicationDeadline || "Open until filled",
+    matchPercent: job.matchPercent,
+    matchReason: job.matchReason,
+    url: job.url,
+  });
+
+  const openAssistantForJob = (job: JobResult, displayCompany: string, prompt?: string) => {
+    const context = buildJobAssistantContext(job, displayCompany);
+    setSelectedAssistantJob(context);
+    setAssistantOpen(true);
+    if (prompt) {
+      setAssistantPrompt((current) => ({
+        text: prompt,
+        version: current.version + 1,
+      }));
     }
   };
 
@@ -336,8 +372,6 @@ export default function JobHunter() {
           {jobs.map((job, i) => {
             const currentStatus = trackingStates[job.url];
             const displayCompany = job.company || getSourceName(job.url);
-            const coverLetterPrompt = encodeURIComponent(`Draft a personalized cover letter for this ${job.title} role at ${displayCompany} grounded in my CV.`);
-            const chatRedirectUrl = `/assistant?prompt=${coverLetterPrompt}`;
 
             return (
               <div key={i} className="group relative bg-white border border-slate-100 shadow-xl shadow-slate-200/40 rounded-2xl p-4 sm:p-7 lg:p-10 mb-6 sm:mb-8 max-w-4xl mx-auto hover:border-[#1E3A8A]/40 transition-all duration-200">
@@ -441,19 +475,94 @@ export default function JobHunter() {
                     )}
                   </button>
 
-                  <a
-                    href={chatRedirectUrl}
+                  <button
+                    type="button"
+                    onClick={() => openAssistantForJob(job, displayCompany, "Analyze this role against my CV and suggest the strongest next steps.")}
+                    className="bg-white border border-blue-200 text-[#1E3A8A] hover:bg-blue-50 text-sm sm:text-base font-bold w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-center transition-all flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <Image src="/brand/assist.png" alt="" width={18} height={18} className="h-[18px] w-[18px] object-contain" />
+                    Ask AI
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => openAssistantForJob(job, displayCompany, "Draft a concise, personalized cover letter for this role.")}
                     className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm sm:text-base font-bold w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-center transition-all flex items-center justify-center gap-2"
                   >
                     <FileEdit size={16} className="text-[#1E3A8A]" />
                     Draft Cover Letter
-                  </a>
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      {jobs.length > 0 && (
+        <button
+          type="button"
+          onClick={() => {
+            setAssistantOpen(true);
+            if (!selectedAssistantJob) {
+              const firstJob = jobs[0];
+              setSelectedAssistantJob(buildJobAssistantContext(firstJob, firstJob.company || getSourceName(firstJob.url)));
+            }
+          }}
+          className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center gap-2 rounded-full border border-blue-200 bg-white text-sm font-black text-[#1E3A8A] shadow-2xl shadow-blue-950/20 transition hover:-translate-y-1 hover:bg-blue-50 sm:w-auto sm:px-5"
+          aria-label="Open CareerPilot Assistant"
+        >
+          <Image src="/brand/assist.png" alt="" width={28} height={28} className="h-7 w-7 object-contain" />
+          <span className="hidden sm:inline">Ask AI</span>
+        </button>
+      )}
+
+      {assistantOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-end bg-slate-950/25 px-3 py-3 backdrop-blur-sm sm:px-5 sm:py-5">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-2xl shadow-slate-950/20">
+            <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-white px-4 py-3 sm:px-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
+                  <Image src="/brand/assist.png" alt="" width={24} height={24} className="h-6 w-6 object-contain" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-slate-950">Ask CareerPilot</p>
+                  <p className="truncate text-xs font-semibold text-slate-500">
+                    {selectedAssistantJob ? `${selectedAssistantJob.title} at ${selectedAssistantJob.company}` : "Choose a job to discuss"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssistantOpen(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-slate-500 transition hover:bg-blue-50 hover:text-[#1E3A8A]"
+                aria-label="Close assistant"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {selectedAssistantJob ? (
+              <div className="overflow-hidden">
+                <AIChat
+                  compact
+                  jobContext={selectedAssistantJob}
+                  initialPrompt={assistantPrompt.text}
+                  promptVersion={assistantPrompt.version}
+                />
+              </div>
+            ) : (
+              <div className="p-6 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1E3A8A]">
+                  <MessageSquareText size={24} />
+                </div>
+                <p className="text-sm font-bold text-slate-800">Pick a job card and choose Ask AI.</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">CareerPilot will use that job with your saved CV profile.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

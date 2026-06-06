@@ -3,6 +3,36 @@ import { NextRequest, NextResponse } from "next/server";
 // Points directly to your local Python backend service running ChromaDB
 const BACKEND_SERVICE_URL = "http://localhost:8000";
 
+export async function GET(req: NextRequest) {
+  try {
+    const userId = req.headers.get("x-user-id") || req.nextUrl.searchParams.get("userId") || "anonymous_session_user";
+    const backendResponse = await fetch(`${BACKEND_SERVICE_URL}/api/cv-status?userId=${encodeURIComponent(userId)}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!backendResponse.ok) {
+      return NextResponse.json(
+        { success: false, uploaded: false, error: "We could not check your saved CV right now." },
+        { status: backendResponse.status },
+      );
+    }
+
+    const backendData = await backendResponse.json();
+    return NextResponse.json(backendData, { status: 200 });
+  } catch (error: unknown) {
+    console.error("CV status check failed:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        uploaded: false,
+        error: "We could not check your saved CV right now.",
+      },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get("content-type") || "";

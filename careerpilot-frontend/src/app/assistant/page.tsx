@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AIChat from "@/components/AIChat";
 import { useAuth } from "@/components/AuthProvider";
-import { hasProfileReady } from "@/lib/userSession";
+import { hasProfileReady, syncCvUploadStateFromServer } from "@/lib/userSession";
 
 function AssistantContent() {
   const { user } = useAuth();
@@ -17,7 +17,14 @@ function AssistantContent() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setProfileReady(hasProfileReady(user?.uid));
+      const updateProfileAccess = async () => {
+        const syncedState = hasProfileReady(user?.uid)
+          ? null
+          : await syncCvUploadStateFromServer(user?.uid);
+        setProfileReady(hasProfileReady(user?.uid) || Boolean(syncedState?.uploaded));
+      };
+
+      void updateProfileAccess();
     }, 0);
 
     return () => window.clearTimeout(timer);

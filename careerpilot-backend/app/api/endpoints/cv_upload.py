@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from app.services.rag_service import CVVectorEngine
@@ -18,6 +19,53 @@ class ManualFormPayload(BaseModel):
     userId: str
     text_chunk: str
     type: str
+
+def get_latest_cv_text_file(user_id: str) -> Optional[str]:
+    if not os.path.exists(UPLOAD_DIR):
+        return None
+
+    matching_files = [
+        filename
+        for filename in os.listdir(UPLOAD_DIR)
+        if filename.endswith(".txt") and filename.startswith(f"{user_id}_")
+    ]
+
+    if not matching_files:
+        return None
+
+    return max(
+        matching_files,
+        key=lambda filename: os.path.getmtime(os.path.join(UPLOAD_DIR, filename)),
+    )
+
+def format_saved_filename(user_id: str, stored_filename: str) -> str:
+    display_name = stored_filename.removeprefix(f"{user_id}_")
+    while display_name.endswith(".txt"):
+        display_name = display_name[:-4]
+    return display_name or "Saved CV"
+
+@router.get("/cv-status")
+async def get_cv_status(userId: str = "anonymous_user"):
+    safe_user_id = sanitize_user_id(userId)
+    latest_file = get_latest_cv_text_file(safe_user_id)
+
+    if not latest_file:
+        return {"success": True, "uploaded": False, "fileName": "", "skills": [], "updatedAt": ""}
+
+    file_path = os.path.join(UPLOAD_DIR, latest_file)
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            full_text = f.read()
+
+        return {
+            "success": True,
+            "uploaded": bool(full_text.strip()),
+            "fileName": format_saved_filename(safe_user_id, latest_file),
+            "skills": vector_engine.extract_skills(full_text),
+            "updatedAt": str(os.path.getmtime(file_path)),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/cv-upload")
 async def handle_cv_upload(file: UploadFile = File(...), userId: str = Form("anonymous_user"), type: str = Form("resume_parsed")):

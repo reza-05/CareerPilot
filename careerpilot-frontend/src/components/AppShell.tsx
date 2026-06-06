@@ -26,7 +26,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const isWelcome = pathname === "/welcome";
+  const isWelcome = pathname === "/" || pathname === "/welcome";
   const isAuth = pathname === "/auth";
   const isPublicRoute = isWelcome || isAuth;
 

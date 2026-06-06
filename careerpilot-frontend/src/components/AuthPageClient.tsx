@@ -137,8 +137,8 @@ export default function AuthPageClient() {
       <header
         className={`fixed inset-x-0 top-0 z-50 border-b transition duration-300 ${
           isScrolled
-            ? "border-blue-200/80 bg-[#EEF5FF]/86 shadow-lg shadow-blue-950/10 backdrop-blur-xl"
-            : "border-transparent bg-white/55 backdrop-blur-md"
+            ? "border-blue-200/90 bg-[#EEF5FF]/[0.92] shadow-lg shadow-blue-950/10 backdrop-blur-xl"
+            : "border-blue-100/70 bg-white/[0.82] shadow-sm shadow-blue-950/5 backdrop-blur-xl"
         }`}
       >
         <nav className="mx-auto flex h-20 max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-14">
