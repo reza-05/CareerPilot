@@ -8,7 +8,7 @@ import { UserRound } from "lucide-react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 
 const navItems = [
-  { href: "/", label: "CV", icon: "/brand/cv.png" },
+  { href: "/cv-upload", label: "CV", icon: "/brand/cv.png" },
   { href: "/job-hunter", label: "Jobs", icon: "/brand/job.png" },
   { href: "/assistant", label: "Assistant", shortLabel: "AI", icon: "/brand/assist.png" },
   { href: "/tracker", label: "Tracker", icon: "/brand/tracker.png", largerIcon: true },

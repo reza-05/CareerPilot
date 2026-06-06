@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, Mail } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 
 type AuthMode = "login" | "signup";
@@ -30,9 +30,12 @@ export default function AuthPageClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const passwordRules = [
     { label: "8+ characters", valid: password.length >= 8 },
@@ -48,7 +51,14 @@ export default function AuthPageClient() {
   const confirmPasswordMatches = confirmPasswordTouched && password === confirmPassword;
   const signupReady = Boolean(email.trim()) && passwordStrong && confirmPasswordMatches;
 
-  const goToCvUpload = () => router.push("/");
+  useEffect(() => {
+    const onScroll = () => setIsScrolled(window.scrollY > 28);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const goToCvUpload = () => router.push("/cv-upload");
 
   const changeMode = (mode: AuthMode) => {
     setAuthMode(mode);
@@ -124,22 +134,30 @@ export default function AuthPageClient() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-slate-950">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-6 sm:px-8">
-        <header className="flex items-center justify-between gap-4">
+      <header
+        className={`fixed inset-x-0 top-0 z-50 border-b transition duration-300 ${
+          isScrolled
+            ? "border-blue-200/80 bg-[#EEF5FF]/86 shadow-lg shadow-blue-950/10 backdrop-blur-xl"
+            : "border-transparent bg-white/55 backdrop-blur-md"
+        }`}
+      >
+        <nav className="mx-auto flex h-20 max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-14">
           <button type="button" onClick={() => router.push("/welcome")} className="flex items-center" aria-label="Back to CareerPilot welcome">
-            <Image src="/brand/logo.png" alt="CareerPilot" width={260} height={96} priority className="h-10 w-auto sm:h-12" />
+            <Image src="/brand/logo.png" alt="CareerPilot" width={300} height={110} priority className="h-10 w-auto sm:h-12 lg:h-14" />
           </button>
           <button
             type="button"
             onClick={() => router.push("/welcome")}
-            className="inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:bg-blue-50"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-4 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 sm:px-6"
           >
             <ArrowLeft className="h-4 w-4" />
             Back
           </button>
-        </header>
+        </nav>
+      </header>
 
-        <div className="flex flex-1 items-center justify-center py-10">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 pt-24 sm:px-8 lg:pt-28">
+        <div className="flex flex-1 items-center justify-center py-8">
           <section className="w-full max-w-[520px] rounded-3xl border border-blue-100 bg-white p-5 shadow-2xl shadow-blue-950/10 sm:p-8">
             {user ? (
               <div className="text-center">
@@ -157,14 +175,6 @@ export default function AuthPageClient() {
             ) : (
               <>
                 <div className="mb-7">
-                  <button
-                    type="button"
-                    onClick={() => router.push("/welcome")}
-                    className="mb-4 inline-flex items-center gap-2 text-sm font-black text-slate-500 transition hover:text-[#1E3A8A]"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to welcome
-                  </button>
                   <h1 className="text-3xl font-black leading-tight text-[#17435B] sm:text-4xl">
                     {authMode === "signup" ? "Create your CareerPilot account" : "Log in to CareerPilot"}
                   </h1>
@@ -257,7 +267,7 @@ export default function AuthPageClient() {
                         </span>
                         <div className="relative">
                           <input
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             value={password}
                             onChange={(event) => {
                               setPassword(event.target.value);
@@ -265,7 +275,7 @@ export default function AuthPageClient() {
                             }}
                             required
                             minLength={authMode === "signup" ? 8 : 6}
-                            className={`h-12 w-full rounded-xl border bg-[#F8FAFC] px-4 pr-11 text-sm font-semibold text-slate-800 outline-none transition focus:bg-white ${
+                            className={`h-12 w-full rounded-xl border bg-[#F8FAFC] px-4 pr-20 text-sm font-semibold text-slate-800 outline-none transition focus:bg-white ${
                               authMode === "signup" && passwordTouched
                                 ? passwordStrong
                                   ? "border-emerald-300 focus:border-emerald-500"
@@ -274,11 +284,19 @@ export default function AuthPageClient() {
                             }`}
                             placeholder={authMode === "signup" ? "8+ chars with A-z, 0-9, symbol" : "Enter your password"}
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword((current) => !current)}
+                            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-[#1E3A8A]"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                          >
+                            {showPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                          </button>
                           {authMode === "signup" && passwordTouched && (
                             passwordStrong ? (
-                              <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
+                              <CheckCircle2 className="absolute right-12 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
                             ) : (
-                              <AlertCircle className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+                              <AlertCircle className="absolute right-12 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
                             )
                           )}
                         </div>
@@ -301,7 +319,7 @@ export default function AuthPageClient() {
                             </span>
                             <div className="relative">
                               <input
-                                type="password"
+                                type={showConfirmPassword ? "text" : "password"}
                                 value={confirmPassword}
                                 onChange={(event) => {
                                   setConfirmPassword(event.target.value);
@@ -309,7 +327,7 @@ export default function AuthPageClient() {
                                 }}
                                 required
                                 minLength={8}
-                                className={`h-12 w-full rounded-xl border bg-[#F8FAFC] px-4 pr-11 text-sm font-semibold text-slate-800 outline-none transition focus:bg-white ${
+                                className={`h-12 w-full rounded-xl border bg-[#F8FAFC] px-4 pr-20 text-sm font-semibold text-slate-800 outline-none transition focus:bg-white ${
                                   confirmPasswordTouched
                                     ? confirmPasswordMatches
                                       ? "border-emerald-300 focus:border-emerald-500"
@@ -318,11 +336,19 @@ export default function AuthPageClient() {
                                 }`}
                                 placeholder="Retype the same password"
                               />
+                              <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword((current) => !current)}
+                                className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-[#1E3A8A]"
+                                aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                              >
+                                {showConfirmPassword ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                              </button>
                               {confirmPasswordTouched && (
                                 confirmPasswordMatches ? (
-                                  <CheckCircle2 className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
+                                  <CheckCircle2 className="absolute right-12 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-500" />
                                 ) : (
-                                  <AlertCircle className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
+                                  <AlertCircle className="absolute right-12 top-1/2 h-5 w-5 -translate-y-1/2 text-red-500" />
                                 )
                               )}
                             </div>

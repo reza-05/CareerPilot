@@ -117,7 +117,7 @@ export default function CVBuilderPage() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 md:px-6">
       <div className="max-w-5xl mx-auto">
-        <Link href="/" className="inline-flex items-center text-[#1E3A8A] font-bold text-sm hover:underline mb-8 font-[Urbanist]">
+        <Link href="/cv-upload" className="inline-flex items-center text-[#1E3A8A] font-bold text-sm hover:underline mb-8 font-[Urbanist]">
           <ArrowLeft size={18} className="mr-2" /> Back
         </Link>
 

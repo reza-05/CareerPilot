@@ -262,7 +262,7 @@ export default function JobHunter() {
                 {PROFILE_REQUIRED_MESSAGE} CareerPilot uses your profile as the source of truth before searching and ranking opportunities.
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <Link href="/" className="rounded-lg bg-[#1E3A8A] px-4 py-2 text-center text-sm font-bold text-white hover:bg-[#1D4ED8]">
+                <Link href="/cv-upload" className="rounded-lg bg-[#1E3A8A] px-4 py-2 text-center text-sm font-bold text-white hover:bg-[#1D4ED8]">
                   Upload CV
                 </Link>
                 <Link href="/cv-builder" className="rounded-lg border border-blue-200 bg-white px-4 py-2 text-center text-sm font-bold text-[#1E3A8A] hover:bg-blue-50">

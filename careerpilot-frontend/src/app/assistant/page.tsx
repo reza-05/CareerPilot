@@ -58,7 +58,7 @@ function AssistantContent() {
             </p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/"
+                href="/cv-upload"
                 className="rounded-xl bg-[#1E3A8A] px-5 py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-[#1D4ED8]"
               >
                 Upload CV
