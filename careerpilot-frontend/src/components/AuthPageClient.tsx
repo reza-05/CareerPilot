@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type AuthMode = "login" | "signup";
 
@@ -133,32 +134,35 @@ export default function AuthPageClient() {
   const emailFormVisible = authMode === "signup" || showEmailForm;
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-slate-950">
+    <main className="min-h-screen bg-[#F8FAFC] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <header
         className={`fixed inset-x-0 top-0 z-50 border-b transition duration-300 ${
           isScrolled
-            ? "border-blue-200/90 bg-[#EEF5FF]/[0.92] shadow-lg shadow-blue-950/10 backdrop-blur-xl"
-            : "border-blue-100/70 bg-white/[0.82] shadow-sm shadow-blue-950/5 backdrop-blur-xl"
+            ? "border-blue-200/90 bg-[#EEF5FF]/[0.92] shadow-lg shadow-blue-950/10 backdrop-blur-xl dark:border-blue-400/20 dark:bg-slate-950/[0.92] dark:shadow-slate-950/70"
+            : "border-blue-100/70 bg-white/[0.82] shadow-sm shadow-blue-950/5 backdrop-blur-xl dark:border-blue-400/15 dark:bg-slate-950/[0.82] dark:shadow-slate-950/60"
         }`}
       >
-        <nav className="mx-auto flex h-20 max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-14">
+        <nav className="mx-auto flex h-[4.25rem] max-w-[1500px] items-center justify-between gap-4 px-5 sm:h-[4.5rem] sm:px-8 lg:px-14">
           <button type="button" onClick={() => router.push("/welcome")} className="flex items-center" aria-label="Back to CareerPilot welcome">
             <Image src="/brand/logo.png" alt="CareerPilot" width={300} height={110} priority className="h-10 w-auto sm:h-12 lg:h-14" />
           </button>
-          <button
-            type="button"
-            onClick={() => router.push("/welcome")}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-4 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 sm:px-6"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push("/welcome")}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-4 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 dark:border-blue-400/20 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-slate-800 sm:px-6"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+            <ThemeToggle />
+          </div>
         </nav>
       </header>
 
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 pt-24 sm:px-8 lg:pt-28">
-        <div className="flex flex-1 items-center justify-center py-8">
-          <section className="w-full max-w-[520px] rounded-3xl border border-blue-100 bg-white p-5 shadow-2xl shadow-blue-950/10 sm:p-8">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-5 pt-20 sm:px-8 lg:pt-[5.5rem]">
+        <div className="flex flex-1 items-center justify-center py-5">
+          <section className="w-full max-w-[520px] rounded-3xl border border-blue-100 bg-white p-5 shadow-2xl shadow-blue-950/10 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:p-8">
             {user ? (
               <div className="text-center">
                 <p className="text-2xl font-black text-slate-950">You are already signed in.</p>

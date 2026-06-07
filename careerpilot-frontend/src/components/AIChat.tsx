@@ -2,10 +2,16 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { Urbanist } from "next/font/google";
 import { Input } from "@/components/ui/input"; 
-import { CalendarCheck2, DollarSign, ExternalLink, Loader2, MapPin, Percent, Send, Sparkles, Trash2, UserRound } from "lucide-react";
+import { CalendarCheck2, Check, Copy, DollarSign, ExternalLink, Loader2, MapPin, Percent, Send, Sparkles, Trash2, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
 import { getAssistantChatStateKey } from "@/lib/userSession";
+
+const urbanist = Urbanist({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
 
 type ChatMessage = { role: string; content: string };
 
@@ -71,6 +77,7 @@ export default function AIChat({
   const [input, setInput] = useState(initialChatState.input);
   const [activeJobContext, setActiveJobContext] = useState<JobAssistantContext | null>(initialChatState.activeJobContext || null);
   const [loading, setLoading] = useState(false);
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const lastPromptVersion = useRef(-1);
 
   useEffect(() => {
@@ -189,8 +196,16 @@ export default function AIChat({
     }
   };
 
+  const copyMessage = async (content: string, index: number) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+
+    await navigator.clipboard.writeText(content);
+    setCopiedMessageIndex(index);
+    window.setTimeout(() => setCopiedMessageIndex(null), 1400);
+  };
+
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-blue-200/80 bg-[#F7FAFF] shadow-2xl shadow-blue-100/80 ring-1 ring-white">
+    <div className={`${urbanist.className} ${compact ? "h-full min-h-0" : ""} flex w-full flex-col overflow-hidden rounded-2xl border border-blue-200/80 bg-[#F7FAFF] shadow-2xl shadow-blue-100/80 ring-1 ring-white`}>
       <div className="flex flex-col gap-3 border-b border-blue-100 bg-[#EEF4FF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-blue-100">
@@ -221,7 +236,7 @@ export default function AIChat({
         </div>
       </div>
 
-      <div className={`${compact ? "h-[min(62vh,520px)] min-h-[360px]" : "h-[min(58vh,420px)] min-h-[340px] md:h-[420px] lg:h-[460px]"} overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5`}>
+      <div className={`${compact ? "min-h-0 flex-1" : "h-[min(58vh,420px)] min-h-[340px] md:h-[420px] lg:h-[460px]"} overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5`}>
         {activeJobContext && (
           <section className="mb-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/60">
             <div className="flex items-start justify-between gap-3">
@@ -299,15 +314,25 @@ export default function AIChat({
                   <span className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
                     {isUser ? "You" : "Assistant"}
                   </span>
-                  <p
+                  <div
                     className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${
                       isUser
-                        ? "rounded-tr-sm bg-[#1E3A8A] text-white"
-                        : "rounded-tl-sm border border-slate-200 bg-white text-slate-700"
+                        ? "rounded-tr-sm bg-[#1E3A8A] font-semibold text-white"
+                        : "rounded-tl-sm border border-slate-200 bg-white font-semibold text-slate-900"
                     }`}
                   >
                     {m.content}
-                  </p>
+                  </div>
+                  {!isUser && (
+                    <button
+                      type="button"
+                      onClick={() => copyMessage(m.content, i)}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500 shadow-sm transition hover:border-blue-200 hover:bg-blue-50 hover:text-[#1E3A8A]"
+                    >
+                      {copiedMessageIndex === i ? <Check size={13} /> : <Copy size={13} />}
+                      {copiedMessageIndex === i ? "Copied" : "Copy"}
+                    </button>
+                  )}
                 </div>
                 {isUser && (
                   <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">

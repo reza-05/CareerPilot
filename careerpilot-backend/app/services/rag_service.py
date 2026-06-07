@@ -69,10 +69,44 @@ class CVVectorEngine:
         "cloud": ["aws", "gcp", "azure", "docker", "kubernetes", "ci/cd", "lambda", "cloud"],
         "data": ["sql", "postgresql", "mongodb", "redis", "kafka", "elasticsearch", "database", "data"],
     }
+    SKILL_FAMILIES = {
+        "backend": [
+            "backend", "node.js", "nodejs", "express", "fastapi", "django", "flask",
+            "rest api", "api", "graphql", "microservice", "grpc", "redis", "postgresql",
+            "mysql", "mongodb", "sql", "database", "distributed systems"
+        ],
+        "frontend": [
+            "frontend", "react", "next.js", "nextjs", "typescript", "javascript",
+            "html", "css", "tailwind", "ui", "responsive", "web"
+        ],
+        "ai_ml": [
+            "machine learning", "deep learning", "artificial intelligence", "ai", "nlp",
+            "tensorflow", "pytorch", "scikit-learn", "pandas", "numpy", "data science"
+        ],
+        "devops_cloud": [
+            "docker", "kubernetes", "aws", "gcp", "azure", "ci/cd", "linux",
+            "deployment", "cloud", "nginx"
+        ],
+        "mobile": ["mobile", "android", "ios", "flutter", "react native", "kotlin", "swift"],
+        "data": ["data analysis", "analytics", "sql", "excel", "power bi", "tableau", "etl"],
+        "design": ["figma", "ui", "ux", "wireframe", "prototype", "visual design"],
+        "marketing": ["marketing", "seo", "content", "campaign", "social media", "brand"],
+    }
+    GENERAL_TECH_TERMS = sorted({term for terms in SKILL_FAMILIES.values() for term in terms})
     EXPERIENCE_SIGNALS = [
         "intern", "software engineering intern", "backend engineering intern", "google",
         "deployed", "architected", "optimized", "distributed", "microservice",
         "production", "unit", "integration", "open source", "icpc", "cgpa",
+    ]
+    EVIDENCE_SIGNALS = [
+        "built", "developed", "implemented", "designed", "deployed", "optimized",
+        "integrated", "maintained", "led", "collaborated", "github", "open source",
+        "project", "intern", "experience", "contributed", "production", "research",
+        "published", "certification", "award", "competition", "icpc", "hackathon"
+    ]
+    GENERIC_SOFTWARE_TERMS = [
+        "software", "developer", "engineer", "engineering", "programming",
+        "web", "application", "backend", "frontend", "full stack", "full-stack"
     ]
 
     def __init__(self):
@@ -156,26 +190,53 @@ class CVVectorEngine:
         return sorted(set(detected), key=lambda skill: skill.lower())
 
     def _contains_term(self, text: str, term: str) -> bool:
-        escaped = re.escape(term.lower())
-        return bool(re.search(rf"(?<![a-z0-9+#.]){escaped}(?![a-z0-9+#.])", text.lower()))
+        normalized_term = term.lower()
+        escaped = re.escape(normalized_term)
+        plural_suffix = ""
+        if len(normalized_term) > 4 and normalized_term[-1].isalpha() and not normalized_term.endswith(("css", "sass", "less")):
+            plural_suffix = r"(?:s|es)?"
+        return bool(re.search(rf"(?<![a-z0-9+#.]){escaped}{plural_suffix}(?![a-z0-9+#.])", text.lower()))
+
+    def _hit_count(self, text: str, terms: list[str]) -> int:
+        return sum(1 for term in terms if self._contains_term(text, term))
 
     def _score_skill_overlap(self, job_text: str, cv_text: str) -> float:
         job_skills = set(self.extract_skills(job_text))
         cv_skills = set(self.extract_skills(cv_text))
-        generic_software_terms = [
-            "software", "developer", "programming", "web", "database", "api", "application"
-        ]
 
         if not job_skills:
-            if cv_skills and any(self._contains_term(job_text, term) for term in generic_software_terms):
-                return 0.35
+            if cv_skills and any(self._contains_term(job_text, term) for term in self.GENERIC_SOFTWARE_TERMS):
+                return min(0.62, 0.34 + (min(len(cv_skills), 14) / 14) * 0.28)
             return 0.15 if cv_skills else 0.0
 
         overlap_count = len(job_skills.intersection(cv_skills))
         overlap_score = overlap_count / max(3, len(job_skills))
-        if overlap_score == 0 and cv_skills and any(self._contains_term(job_text, term) for term in generic_software_terms):
+        if overlap_score == 0 and cv_skills and any(self._contains_term(job_text, term) for term in self.GENERIC_SOFTWARE_TERMS):
             return 0.30
         return min(1.0, overlap_score)
+
+    def _score_required_skill_coverage(self, job_text: str, cv_text: str) -> float:
+        normalized_job = job_text.lower()
+        normalized_cv = cv_text.lower()
+        family_scores = []
+
+        for terms in self.SKILL_FAMILIES.values():
+            job_hits = [term for term in terms if self._contains_term(normalized_job, term)]
+            if not job_hits:
+                continue
+            cv_hits = [term for term in terms if self._contains_term(normalized_cv, term)]
+            family_scores.append(min(1.0, len(cv_hits) / max(2, len(job_hits))))
+
+        explicit_skill_score = self._score_skill_overlap(job_text, cv_text)
+        if not family_scores:
+            if any(self._contains_term(normalized_job, term) for term in self.GENERIC_SOFTWARE_TERMS):
+                tech_depth = min(1.0, self._hit_count(normalized_cv, self.GENERAL_TECH_TERMS) / 12)
+                evidence_depth = min(1.0, self._hit_count(normalized_cv, self.EVIDENCE_SIGNALS) / 8)
+                return max(explicit_skill_score, 0.30 + tech_depth * 0.22 + evidence_depth * 0.16)
+            return explicit_skill_score
+
+        family_score = sum(family_scores) / len(family_scores)
+        return min(1.0, family_score * 0.70 + explicit_skill_score * 0.30)
 
     def _score_role_alignment(self, job_text: str, cv_text: str) -> float:
         normalized_job = job_text.lower()
@@ -199,6 +260,46 @@ class CVVectorEngine:
         normalized_cv = cv_text.lower()
         hits = sum(1 for signal in self.EXPERIENCE_SIGNALS if self._contains_term(normalized_cv, signal))
         return min(1.0, hits / 7)
+
+    def _score_cv_depth(self, cv_text: str) -> float:
+        normalized_cv = cv_text.lower()
+        tech_score = min(1.0, self._hit_count(normalized_cv, self.GENERAL_TECH_TERMS) / 12)
+        evidence_score = min(1.0, self._hit_count(normalized_cv, self.EVIDENCE_SIGNALS) / 9)
+        education_score = min(1.0, self._hit_count(normalized_cv, ["university", "college", "cgpa", "degree", "b.sc", "bachelor"]) / 3)
+        contact_score = 1.0 if re.search(r"@|github\.com|linkedin\.com", normalized_cv) else 0.35
+        return min(1.0, tech_score * 0.40 + evidence_score * 0.38 + education_score * 0.14 + contact_score * 0.08)
+
+    def _detect_seniority(self, job_text: str) -> str:
+        normalized_job = job_text.lower()
+        if re.search(r"\b(intern|internship|trainee|apprentice)\b", normalized_job):
+            return "intern"
+        if re.search(r"\b(fresher|entry\s*level|graduate|junior|jr\.?)\b", normalized_job):
+            return "junior"
+        if re.search(r"\b(senior|sr\.?|lead|principal|staff|architect)\b", normalized_job):
+            return "senior"
+        years = [int(value) for value in re.findall(r"\b(\d+)\s*\+?\s*(?:years|yrs)\b", normalized_job)]
+        if years and max(years) >= 5:
+            return "senior"
+        if years and max(years) >= 2:
+            return "mid"
+        return "general"
+
+    def _score_seniority_fit(self, job_text: str, cv_text: str, cv_depth: float) -> float:
+        seniority = self._detect_seniority(job_text)
+        normalized_cv = cv_text.lower()
+        work_hits = self._hit_count(normalized_cv, ["intern", "experience", "worked", "company", "client", "production", "maintained"])
+        project_hits = self._hit_count(normalized_cv, ["project", "built", "developed", "implemented", "github", "deployed"])
+        leadership_hits = self._hit_count(normalized_cv, ["lead", "led", "managed", "mentored", "architected", "ownership"])
+
+        if seniority == "intern":
+            return min(1.0, 0.58 + cv_depth * 0.38)
+        if seniority == "junior":
+            return min(1.0, 0.48 + cv_depth * 0.34 + min(project_hits, 3) * 0.05)
+        if seniority == "mid":
+            return min(1.0, 0.32 + cv_depth * 0.30 + min(work_hits, 5) * 0.06 + min(project_hits, 4) * 0.04)
+        if seniority == "senior":
+            return min(1.0, 0.20 + cv_depth * 0.20 + min(work_hits, 6) * 0.055 + min(leadership_hits, 4) * 0.07)
+        return min(1.0, 0.40 + cv_depth * 0.42 + min(project_hits + work_hits, 6) * 0.03)
 
     def _extract_skills_from_sections(self, text: str) -> list[str]:
         section_pattern = re.compile(
@@ -304,22 +405,45 @@ class CVVectorEngine:
         raw_score = float(np.mean(top_scores))
         semantic_score = max(0.0, min(1.0, (raw_score - 0.25) / 0.55))
         cv_text = "\n".join(stored.get("documents") or [])
-        skill_score = self._score_skill_overlap(job_description, cv_text)
+        skill_score = self._score_required_skill_coverage(job_description, cv_text)
         role_score = self._score_role_alignment(job_description, cv_text)
         experience_score = self._score_experience_strength(cv_text)
+        cv_depth_score = self._score_cv_depth(cv_text)
+        seniority_score = self._score_seniority_fit(job_description, cv_text, cv_depth_score)
 
         effective_experience_score = experience_score * max(skill_score, role_score)
 
         final_score = (
-            semantic_score * 0.42
-            + skill_score * 0.28
-            + role_score * 0.20
-            + effective_experience_score * 0.10
+            semantic_score * 0.28
+            + skill_score * 0.30
+            + role_score * 0.18
+            + seniority_score * 0.12
+            + cv_depth_score * 0.08
+            + effective_experience_score * 0.04
         )
 
         has_job_detail = len(re.findall(r"[a-zA-Z][a-zA-Z0-9+#.]{2,}", job_description or "")) >= 35
         if not has_job_detail:
-            final_score *= 0.88
+            final_score *= 0.94
+            if not any(self._contains_term(job_description, term) for term in self.GENERIC_SOFTWARE_TERMS):
+                final_score = min(final_score, 0.58)
+            else:
+                final_score = min(final_score, 0.74)
+
+        if skill_score >= 0.72 and role_score >= 0.70 and cv_depth_score >= 0.68:
+            final_score += 0.045
+
+        if skill_score < 0.22 and role_score < 0.25 and semantic_score < 0.55:
+            final_score = min(final_score, 0.42)
+
+        if cv_depth_score < 0.28:
+            final_score = min(final_score, 0.50)
+
+        seniority = self._detect_seniority(job_description)
+        if seniority == "senior" and seniority_score < 0.58:
+            final_score = min(final_score, 0.58)
+        elif seniority == "mid" and seniority_score < 0.55:
+            final_score = min(final_score, 0.64)
 
         percent = int(round(max(0, min(100, final_score * 100))))
         return {
@@ -329,6 +453,8 @@ class CVVectorEngine:
                 "semantic": round(semantic_score, 3),
                 "skills": round(skill_score, 3),
                 "role": round(role_score, 3),
+                "seniority": round(seniority_score, 3),
+                "cv_depth": round(cv_depth_score, 3),
                 "experience": round(effective_experience_score, 3),
             },
         }

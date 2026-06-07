@@ -72,7 +72,19 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
         body: formData,
       });
 
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const rawText = await response.text();
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          throw new Error(rawText || "Server responded with an invalid response.");
+        }
+      }
 
       if (response.ok && data?.success) {
         const detectedSkills = normalizeSkillList(data.skills);
@@ -86,7 +98,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
         onUploadSuccess("Resume saved successfully");
         router.push('/job-hunter');
       } else {
-        setErrorNotification(data?.detail || "We could not prepare your resume right now. Please try again.");
+        setErrorNotification(data?.error || data?.detail || "We could not prepare your resume right now. Please try again.");
       }
     } catch {
       setErrorNotification("We could not prepare your resume right now. Please try again.");

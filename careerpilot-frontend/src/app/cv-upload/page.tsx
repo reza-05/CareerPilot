@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DM_Sans } from 'next/font/google';
+import { ArrowRight, CheckCircle2, Clock3, CloudUpload, FileText, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { loadCvUploadState, markCvUploaded, syncCvUploadStateFromServer } from '@/lib/userSession';
 import { loadCareerProfile, normalizeSkillList, saveCareerProfile } from '@/lib/profileData';
@@ -25,6 +26,15 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [cvState, setCvState] = useState(() => loadCvUploadState(user?.uid));
   const hasSavedResume = Boolean(cvState.uploaded);
+  const savedTimestamp = cvState.updatedAt
+    ? new Date(Number.isNaN(Number(cvState.updatedAt)) ? cvState.updatedAt : Number(cvState.updatedAt) * 1000).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "Recently saved";
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -134,102 +144,152 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   // ==========================================================
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center bg-[#f8f9fa] px-4 py-16 sm:py-20 min-h-[300px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E3A8A] mb-4"></div>
-        <p className="text-slate-800 font-medium text-base text-center">
+      <div className="flex min-h-[320px] flex-col items-center justify-center bg-[#f8f9fa] px-4 py-10 dark:bg-slate-950 sm:py-12">
+        <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-100 bg-white shadow-lg shadow-blue-100/70">
+          <Loader2 className="h-6 w-6 animate-spin text-[#1E3A8A]" />
+        </div>
+        <p className="text-center text-base font-bold text-slate-800">
           Preparing your personalized career profile...
         </p>
-        <p className="text-slate-400 text-xs mt-1 text-center">This should only take a moment.</p>
+        <p className="mt-1 text-center text-xs font-medium text-slate-400">This should only take a moment.</p>
       </div>
     );
   }
 
   return (
-    <div className={`min-h-[calc(100vh-4rem)] w-full bg-[#f8f9fa] px-3 py-8 sm:px-4 sm:py-10 md:py-14 ${dmSans.className}`}>
-      <div className="mx-auto max-w-lg sm:max-w-xl">
+    <div className={`min-h-[calc(100vh-4rem)] w-full bg-[#f8f9fa] px-4 py-6 dark:bg-slate-950 sm:px-6 sm:py-8 md:py-10 ${dmSans.className}`}>
+      <div className="mx-auto max-w-2xl">
         
         {/* এরর নোটিফিকেশন ব্যানার */}
         {errorNotification && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm shadow-sm transition-all">
+          <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700 shadow-sm transition-all duration-200">
             <span className="font-semibold">Error:</span> {errorNotification}
           </div>
         )}
 
         {/* মেইন আপলোডার কার্ড */}
-        <div className="bg-white border border-slate-200/70 rounded-2xl p-5 shadow-xl shadow-slate-200/60 transition-all sm:p-8 md:p-9">
-          <h2 className="text-[#1E3A8A] font-bold text-xl tracking-tight text-center mb-2 sm:text-2xl">
-            {hasSavedResume ? "Your Resume Is Ready" : "Upload Your Resume to Begin"}
-          </h2>
-          <p className="text-slate-500 font-medium text-xs sm:text-sm text-center leading-relaxed mb-6 max-w-sm mx-auto">
-            {hasSavedResume
-              ? "CareerPilot will keep using your saved CV until you upload a new one."
-              : "Our AI engine will parse your skills and experience to find high-match opportunities instantly."}
-          </p>
+        <div className="group rounded-[28px] border border-blue-100/80 bg-white p-6 shadow-xl shadow-blue-100/50 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-blue-100/70 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:p-8 md:p-10">
+          <div className="mx-auto max-w-xl text-center">
+            <p className="mb-3 text-[11px] font-black uppercase tracking-[0.2em] text-[#1E3A8A]">
+              CareerPilot CV Workspace
+            </p>
+            <h2 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+              {hasSavedResume ? "Your resume is ready" : "Upload your resume"}
+            </h2>
+            <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-slate-500">
+              {hasSavedResume
+                ? "Your saved CV stays connected to job matching, assistant guidance, and application tracking."
+                : "Add a PDF resume once and CareerPilot will prepare your personalized job workspace."}
+            </p>
+          </div>
 
           {hasSavedResume && (
-            <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-600">
-              <p className="font-bold text-[#1E3A8A]">Saved CV active</p>
-              <p className="mt-1">
-                {cvState.fileName || "Your profile"} is saved for this account.
-                {cvState.skills.length > 0 ? ` ${cvState.skills.length} skills detected.` : ""}
-              </p>
+            <div className="mt-8 animate-in fade-in duration-200 rounded-2xl border border-blue-100 bg-[#F8FBFF] p-4 shadow-sm shadow-blue-100/60 sm:p-5">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-white text-[#1E3A8A] shadow-sm">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1E3A8A]">Saved CV</p>
+                      <p className="mt-1 truncate text-sm font-black text-slate-900 sm:text-base">
+                        {cvState.fileName || "Your saved resume"}
+                      </p>
+                    </div>
+                    <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-100 bg-white px-3 py-1 text-[11px] font-black text-[#1E3A8A]">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Active
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-2 text-xs font-semibold text-slate-500 sm:flex-row sm:items-center sm:gap-4">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Clock3 className="h-3.5 w-3.5 text-[#1E3A8A]" />
+                      {savedTimestamp}
+                    </span>
+                    {cvState.skills.length > 0 && (
+                      <span>{cvState.skills.length} skills detected</span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
           {/* ড্রপ-জোন এরিয়া */}
-          <div className="border-2 border-dashed border-slate-200 hover:border-[#1E3A8A] bg-slate-50/50 rounded-2xl p-5 sm:p-8 flex flex-col items-center justify-center transition-all cursor-pointer group relative min-h-[160px] sm:min-h-[180px]">
+          <div className="group/drop relative mt-8 flex min-h-[210px] cursor-pointer flex-col items-center justify-center rounded-[24px] border-2 border-dashed border-blue-100 bg-white p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#1E3A8A] hover:bg-[#F8FBFF] sm:min-h-[240px] sm:p-10">
             <input 
               type="file" 
               accept=".pdf"
               onChange={handleFileChange} 
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+              className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0" 
             />
-            <svg 
-              className="text-slate-400 group-hover:text-[#1E3A8A] transition-colors mb-3 w-10 h-10" 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <p className="text-slate-700 font-medium text-sm text-center mb-0.5">
+            <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-[#F8FBFF] text-[#1E3A8A] shadow-sm transition-all duration-200 group-hover/drop:bg-white group-hover/drop:shadow-md">
+              <CloudUpload className="h-7 w-7" />
+            </div>
+            <p className="mb-1 max-w-sm text-center text-base font-black text-slate-900">
               {file
                 ? file.name
                 : hasSavedResume
                   ? "Upload a new PDF to replace your saved CV"
-                  : "Drag and drop your PDF here, or click to browse"}
+                  : "Drop your PDF here, or click to browse"}
             </p>
-            <p className="text-slate-400 text-xs text-center">Supports PDF formats up to 10MB</p>
+            <p className="text-center text-sm font-medium text-slate-500">
+              PDF only. Recommended file size up to 10MB.
+            </p>
           </div>
 
           {/* প্রসেস বাটন */}
-          {file && (
-            <button 
-              onClick={handleUpload} 
-              className="mt-6 bg-[#1E3A8A] hover:bg-[#1D4ED8] text-white font-bold py-3 px-6 rounded-xl w-full shadow-sm transition-colors text-center text-sm sm:text-base"
-            >
-              {hasSavedResume ? "Replace Saved Resume" : "Process Resume"}
-            </button>
-          )}
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            {file && (
+              <button 
+                onClick={handleUpload} 
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#1E3A8A] px-6 text-center text-sm font-black text-white shadow-lg shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#1D4ED8]"
+              >
+                {hasSavedResume ? "Replace Saved Resume" : "Process Resume"}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
 
-          {hasSavedResume && !file && (
-            <Link
-              href="/job-hunter"
-              className="mt-6 block rounded-xl bg-[#1E3A8A] px-6 py-3 text-center text-sm font-bold text-white shadow-sm transition-colors hover:bg-[#1D4ED8] sm:text-base"
-            >
-              Continue to Job Search
-            </Link>
-          )}
+            {hasSavedResume && !file && (
+              <Link
+                href="/job-hunter"
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#1E3A8A] px-6 text-center text-sm font-black text-white shadow-lg shadow-blue-900/15 transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#1D4ED8]"
+              >
+                Continue to Job Search
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
+
+            {hasSavedResume && (
+              <Link
+                href="/cv-builder"
+                className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-blue-200 bg-white px-6 text-center text-sm font-black text-[#1E3A8A] transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-50"
+              >
+                Edit Profile Manually
+              </Link>
+            )}
+          </div>
 
           {/* ম্যানুয়াল সিভি মেকিং লিংক */}
-          <div className="mt-5 pt-4 border-t border-slate-100 text-center">
-            <p className="text-slate-500 text-xs sm:text-sm">
-              Don&apos;t have a resume? 
+          {!hasSavedResume && (
+            <div className="mt-8 border-t border-blue-50 pt-5 text-center">
+              <p className="text-sm font-medium text-slate-500">
+                Don&apos;t have a resume?
+                <Link href="/cv-builder" className="ml-1 font-black text-[#1E3A8A] transition-colors duration-200 hover:text-[#1D4ED8] hover:underline">
+                  Create your CV manually
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {hasSavedResume && file && (
+            <div className="mt-5 text-center">
               <Link href="/cv-builder" className="text-[#1E3A8A] hover:underline font-semibold ml-1">
-                {hasSavedResume ? "Update your profile manually" : "Create your CV manually here"}
+                Update profile manually instead
               </Link>
-            </p>
-          </div>
+            </div>
+          )}
 
         </div>
       </div>

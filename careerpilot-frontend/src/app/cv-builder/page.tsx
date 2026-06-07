@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
+import ProfileAvatar from "@/components/ProfileAvatar";
 import { markCvUploaded } from "@/lib/userSession";
 import { loadCareerProfile, mergeProfileSkills, normalizeSkillList, saveCareerProfile } from "@/lib/profileData";
 
@@ -25,6 +26,13 @@ export default function CVBuilderPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     setFormData(prev => ({ ...prev, [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value }));
+  };
+
+  const handlePhotoChange = (photoDataUrl: string) => {
+    if (!user?.uid) return;
+    const nextProfile = { ...formData, photoDataUrl };
+    setFormData(nextProfile);
+    saveCareerProfile(user.uid, nextProfile);
   };
 
   const handleFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
@@ -83,6 +91,7 @@ export default function CVBuilderPage() {
 
     const payload = {
       ...formData,
+      photoDataUrl: undefined,
       skills: formData.skills.split(",").map(s => s.trim()).filter(Boolean),
       languages: formData.languages.split(",").map(l => l.trim()).filter(Boolean),
     };
@@ -108,16 +117,16 @@ export default function CVBuilderPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f9fa] px-4 text-center text-[#1E3A8A]">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8f9fa] px-4 text-center text-[#1E3A8A] dark:bg-slate-950">
       <Loader2 size={56} className="animate-spin mb-6 sm:mb-8" />
       <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl font-[Urbanist]">Preparing Your Profile...</h2>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 md:px-6">
+    <div className="min-h-screen bg-[#f8f9fa] px-4 py-5 dark:bg-slate-950 sm:py-6 md:px-6">
       <div className="max-w-5xl mx-auto">
-        <Link href="/cv-upload" className="inline-flex items-center text-[#1E3A8A] font-bold text-sm hover:underline mb-8 font-[Urbanist]">
+        <Link href="/cv-upload" className="inline-flex items-center text-[#1E3A8A] font-bold text-sm hover:underline mb-5 font-[Urbanist]">
           <ArrowLeft size={18} className="mr-2" /> Back
         </Link>
 
@@ -127,8 +136,17 @@ export default function CVBuilderPage() {
           </div>
         )}
 
-        <form noValidate onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-6 sm:space-y-8">
+        <form noValidate onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-5 sm:space-y-6">
           <Card title="Personal Identification">
+            <div className="mb-6 flex items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-400/20 dark:bg-slate-950/60">
+              <ProfileAvatar profile={formData} fallbackName={user?.displayName || user?.email} size="md" editable onPhotoChange={handlePhotoChange} />
+              <div>
+                <p className="text-sm font-black text-slate-900 dark:text-slate-100">Profile photo</p>
+                <p className="mt-1 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                  Optional. This stays visual only and is not used for job matching.
+                </p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <InputField label="First Name *" name="firstName" required placeholder="e.g., John" value={formData.firstName} onChange={handleChange} />
               <InputField label="Surname (Optional)" name="lastName" placeholder="e.g., Doe" value={formData.lastName} onChange={handleChange} />
@@ -214,7 +232,7 @@ export default function CVBuilderPage() {
 
 function Card({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="bg-white p-5 sm:p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+    <div className="bg-white p-5 sm:p-6 md:p-7 rounded-2xl shadow-sm border border-slate-100 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50">
       <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900 mb-5 sm:mb-6 font-[Urbanist]">{title}</h2>
       {children}
     </div>
@@ -223,7 +241,7 @@ function Card({ title, children }: { title: string, children: React.ReactNode })
 
 function AcademicSubSection({ title, children }: { title: string, children: React.ReactNode }) {
   return (
-    <div className="bg-slate-50 p-4 sm:p-5 md:p-6 rounded-xl border border-slate-200">
+    <div className="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-blue-400/20 dark:bg-slate-950/60">
       <h3 className="text-base sm:text-lg md:text-xl font-bold text-[#1E3A8A] mb-4 sm:mb-5 font-[Urbanist]">{title}</h3>
       {children}
     </div>

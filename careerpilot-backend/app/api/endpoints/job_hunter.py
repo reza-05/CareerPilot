@@ -152,18 +152,19 @@ async def upload_cv(file: UploadFile = File(...), x_user_id: str = Header("anony
 async def search_jobs(request: JobRequest, x_user_id: str = Header("anonymous_user")):
     user_id = sanitize_user_id(x_user_id)
     try:
-        results = tavily.search(query=request.query, search_depth="advanced")
+        results = tavily.search(query=request.query, search_depth="advanced", max_results=12)
         formatted = []
 
         for item in results.get("results", []):
             job_description = item.get("content", "")
             job_title = item.get("title", "")
+            scoring_text = f"{job_title}\n\n{job_description}"
 
-            fit_data = vector_engine.compute_fit_score(job_description, user_id=user_id)
+            fit_data = vector_engine.compute_fit_score(scoring_text, user_id=user_id)
             fit_score = fit_data["score"]
             fit_percent = fit_data["percent"]
 
-            relevant_cv_chunks = vector_engine.retrieve_cv_context(job_description, num_results=3, user_id=user_id)
+            relevant_cv_chunks = vector_engine.retrieve_cv_context(scoring_text, num_results=3, user_id=user_id)
             cv_context_str = "\n".join(relevant_cv_chunks) if relevant_cv_chunks else "No CV data available."
 
             explanation_prompt = (
@@ -288,7 +289,9 @@ class TrackerCreate(BaseModel):
     source_url: Optional[str] = None
 
 class StatusUpdate(BaseModel):
-    status: str
+    status: Optional[str] = None
+    application_deadline: Optional[str] = None
+    deadline_date: Optional[str] = None
 
 def get_db():
     db = SessionLocal()
@@ -325,9 +328,17 @@ def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_
     db_job = db.query(JobTracker).filter(JobTracker.id == id, JobTracker.user_id == user_id).first()
     if not db_job:
         raise HTTPException(status_code=404, detail="Entry not found")
-    db_job.status = payload.status
+
+    if payload.status:
+        db_job.status = payload.status
+    if payload.application_deadline is not None:
+        db_job.application_deadline = payload.application_deadline
+    if payload.deadline_date is not None:
+        db_job.deadline_date = payload.deadline_date or normalize_deadline_date(payload.application_deadline or "")
+
     db.commit()
-    return {"status": "success"}
+    db.refresh(db_job)
+    return db_job
 
 @router.delete("/api/tracker/{id}")
 def delete_tracked_job(id: int, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):

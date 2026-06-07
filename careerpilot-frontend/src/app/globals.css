@@ -133,3 +133,52 @@
     overflow-x: hidden;
   }
 }
+
+/* CareerPilot theme bridge for existing hardcoded utility classes. */
+.dark [class~="bg-white"],
+.dark [class~="bg-slate-50"],
+.dark [class*="bg-[#F8FAFC]"],
+.dark [class*="bg-[#f8f9fa]"],
+.dark [class*="bg-[#F8FBFF]"] {
+  background-color: rgb(15 23 42 / 0.96) !important;
+}
+
+.dark [class~="bg-blue-50"],
+.dark [class*="bg-[#EFF6FF]"],
+.dark [class*="bg-[#EEF5FF]"],
+.dark [class*="bg-[#DBEAFE]"] {
+  background-color: rgb(30 58 138 / 0.18) !important;
+}
+
+.dark [class~="text-slate-950"],
+.dark [class~="text-slate-900"],
+.dark [class~="text-slate-800"],
+.dark [class~="text-slate-700"] {
+  color: rgb(241 245 249) !important;
+}
+
+.dark [class~="text-slate-600"],
+.dark [class~="text-slate-500"],
+.dark [class~="text-slate-400"] {
+  color: rgb(203 213 225) !important;
+}
+
+.dark [class~="border-slate-100"],
+.dark [class~="border-slate-200"],
+.dark [class~="border-blue-100"],
+.dark [class~="border-blue-200"] {
+  border-color: rgb(96 165 250 / 0.22) !important;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: rgb(2 6 23 / 0.72) !important;
+  color: rgb(241 245 249) !important;
+  border-color: rgb(96 165 250 / 0.24) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(148 163 184) !important;
+}

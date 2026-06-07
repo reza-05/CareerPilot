@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar, MessageSquareText, X } from "lucide-react";
+import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, MapPin, DollarSign, Calendar, MessageSquareText, X, SlidersHorizontal } from "lucide-react";
 import { DM_Sans } from 'next/font/google';
 import AIChat, { type JobAssistantContext } from "@/components/AIChat";
 import { useAuth } from "@/components/AuthProvider";
@@ -33,14 +33,65 @@ type JobHunterSavedState = {
   searchQuery: string;
   statusMessage: string;
   trackingStates: { [key: string]: string };
+  sortMode: SortMode;
 };
+
+type SortMode = "best-match" | "match-low" | "salary-high" | "salary-low" | "deadline-nearest";
 
 const emptyJobHunterState: JobHunterSavedState = {
   jobs: [],
   searchQuery: "",
   statusMessage: "",
   trackingStates: {},
+  sortMode: "best-match",
 };
+
+const sortOptions: Array<{ value: SortMode; label: string }> = [
+  { value: "best-match", label: "Best match" },
+  { value: "match-low", label: "Match: low to high" },
+  { value: "salary-high", label: "Salary: high to low" },
+  { value: "salary-low", label: "Salary: low to high" },
+  { value: "deadline-nearest", label: "Deadline: nearest first" },
+];
+
+function parseSalaryValue(salary?: string) {
+  if (!salary || /not specified|n\/a|negotiable/i.test(salary)) return null;
+  const normalized = salary.toLowerCase().replace(/,/g, "");
+  const values = Array.from(normalized.matchAll(/(?:৳|tk\.?|bdt|\$)?\s*(\d+(?:\.\d+)?)\s*(k|lakh|lac)?/gi)).map((match) => {
+    const amount = Number(match[1]);
+    const suffix = match[2]?.toLowerCase();
+    if (!Number.isFinite(amount)) return 0;
+    if (suffix === "k") return amount * 1_000;
+    if (suffix === "lakh" || suffix === "lac") return amount * 100_000;
+    return amount;
+  });
+  return values.length ? Math.max(...values) : null;
+}
+
+function getSortedJobs(jobs: JobResult[], sortMode: SortMode) {
+  const sorted = [...jobs];
+
+  return sorted.sort((a, b) => {
+    if (sortMode === "match-low") {
+      return (a.matchPercent ?? 0) - (b.matchPercent ?? 0);
+    }
+    if (sortMode === "salary-high" || sortMode === "salary-low") {
+      const aSalary = parseSalaryValue(a.salaryRange);
+      const bSalary = parseSalaryValue(b.salaryRange);
+      if (aSalary === null && bSalary === null) return (b.matchPercent ?? 0) - (a.matchPercent ?? 0);
+      if (aSalary === null) return 1;
+      if (bSalary === null) return -1;
+      return sortMode === "salary-high" ? bSalary - aSalary : aSalary - bSalary;
+    }
+    if (sortMode === "deadline-nearest") {
+      const aDate = a.deadlineDate ? new Date(`${a.deadlineDate}T00:00:00`).getTime() : Number.POSITIVE_INFINITY;
+      const bDate = b.deadlineDate ? new Date(`${b.deadlineDate}T00:00:00`).getTime() : Number.POSITIVE_INFINITY;
+      if (aDate === bDate) return (b.matchPercent ?? 0) - (a.matchPercent ?? 0);
+      return aDate - bDate;
+    }
+    return (b.matchPercent ?? 0) - (a.matchPercent ?? 0);
+  });
+}
 
 function loadJobHunterState(userId?: string | null): JobHunterSavedState {
   if (!userId || typeof window === "undefined") return emptyJobHunterState;
@@ -60,7 +111,8 @@ function loadJobHunterState(userId?: string | null): JobHunterSavedState {
 
 export default function JobHunter() {
   const { user } = useAuth();
-  const initialSavedState = loadJobHunterState(user?.uid);
+  const userId = user?.uid || "";
+  const initialSavedState = loadJobHunterState(userId);
   const [jobs, setJobs] = useState<JobResult[]>(initialSavedState.jobs);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialSavedState.searchQuery);
@@ -69,6 +121,9 @@ export default function JobHunter() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [selectedAssistantJob, setSelectedAssistantJob] = useState<JobAssistantContext | null>(null);
   const [assistantPrompt, setAssistantPrompt] = useState({ text: "", version: 0 });
+  const [sortMode, setSortMode] = useState<SortMode>(initialSavedState.sortMode || "best-match");
+  const queryParamHandledRef = useRef(false);
+  const sortedJobs = getSortedJobs(jobs, sortMode);
   
   // Clean string index signature matching tracking states safely
   const [trackingStates, setTrackingStates] = useState<{ [key: string]: string }>(initialSavedState.trackingStates);
@@ -150,9 +205,9 @@ export default function JobHunter() {
 
     window.localStorage.setItem(
       getJobHunterStateKey(user.uid),
-      JSON.stringify({ jobs, searchQuery, statusMessage, trackingStates }),
+      JSON.stringify({ jobs, searchQuery, statusMessage, trackingStates, sortMode }),
     );
-  }, [jobs, searchQuery, statusMessage, trackingStates, user?.uid]);
+  }, [jobs, searchQuery, sortMode, statusMessage, trackingStates, user?.uid]);
 
   const getSourceName = (url?: string) => {
     if (!url) return "Job Source";
@@ -193,7 +248,7 @@ export default function JobHunter() {
   };
 
   // Core execution block shared by both form submissions and interactive suggestion tag clicks
-  const executeSearch = async (targetQuery: string) => {
+  const executeSearch = useCallback(async (targetQuery: string) => {
     if (!targetQuery.trim()) return;
     if (!profileReady) {
       setJobs([]);
@@ -206,12 +261,21 @@ export default function JobHunter() {
     try {
       const res = await fetch("/api/search-jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user?.uid || "" },
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
         body: JSON.stringify({ query: targetQuery }),
       });
-      const data = await res.json();
+      let data;
+      const contentType = res.headers.get("content-type") || "";
+
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const rawText = await res.text();
+        throw new Error(rawText || "Search service returned an invalid response.");
+      }
+
       if (data.results) {
-        setJobs(data.results);
+        setJobs(getSortedJobs(data.results, "best-match"));
         if (data.results.length === 0) {
           setStatusMessage(data.error || "No jobs found. Try a broader search like 'Software Engineering internships in Dhaka'.");
         }
@@ -222,11 +286,26 @@ export default function JobHunter() {
     } catch (e) {
       console.error("Fetch failed", e);
       setJobs([]);
-      setStatusMessage("Search failed. Please make sure the app services are running and try again.");
+      setStatusMessage("Search is temporarily unavailable. Please try again in a moment.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [profileReady, userId]);
+
+  useEffect(() => {
+    if (queryParamHandledRef.current || !profileReady) return;
+
+    const queryFromUrl = new URLSearchParams(window.location.search).get("query")?.trim();
+    if (!queryFromUrl) return;
+
+    queryParamHandledRef.current = true;
+    const timer = window.setTimeout(() => {
+      setSearchQuery(queryFromUrl);
+      void executeSearch(queryFromUrl);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [executeSearch, profileReady]);
 
   const huntJobs = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -275,13 +354,13 @@ export default function JobHunter() {
   };
 
   return (
-    <div className={`min-h-screen bg-white text-slate-800 antialiased selection:bg-[#1E3A8A]/10 selection:text-[#1E3A8A] ${dmSans.className}`}>
+    <div className={`min-h-screen bg-white text-slate-800 antialiased selection:bg-[#1E3A8A]/10 selection:text-[#1E3A8A] dark:bg-slate-950 dark:text-slate-100 ${dmSans.className}`}>
       
       {/* Soft Premium Top Mesh Layer Tinted to Coordinate Ecosystem */}
       <div className="absolute top-0 left-0 right-0 h-[420px] bg-gradient-to-b from-blue-50/30 via-transparent to-transparent pointer-events-none z-0" />
 
-      <div className="relative z-10 mx-auto max-w-4xl px-3 py-8 sm:px-4 sm:py-14 lg:py-20">
-        <header className="mb-10 text-center sm:mb-14">
+      <div className="relative z-10 mx-auto max-w-4xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10">
+        <header className="mb-7 text-center sm:mb-9">
           
           {/* Solid Deep Blue Hero Heading (Absolutely No Gradients) */}
           <h1 className="text-[#1E3A8A] font-semibold text-2xl sm:text-4xl md:text-5xl lg:text-5xl tracking-tight text-center mb-4 leading-tight">
@@ -309,7 +388,7 @@ export default function JobHunter() {
           )}
           
           {/* Responsive Command Console Container */}
-          <form onSubmit={huntJobs} className="mt-8 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 sm:mt-10 sm:p-4 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200">
+          <form onSubmit={huntJobs} className="mt-6 max-w-4xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 bg-white border-2 border-slate-200/80 shadow-2xl shadow-slate-200/40 rounded-2xl p-2.5 transition-all focus-within:border-[#1E3A8A] focus-within:ring-4 focus-within:ring-[#1E3A8A]/5 duration-200 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:mt-7 sm:p-4">
             <div className="flex items-center gap-2 w-full px-2 sm:gap-3 sm:px-3">
               <Briefcase size={20} className="text-slate-400 shrink-0 sm:w-6 sm:h-6" />
               <input 
@@ -337,7 +416,7 @@ export default function JobHunter() {
           </form>
 
           {/* Interactive Minimalist Blue Suggestion Pills */}
-          <div className="flex flex-wrap justify-center items-center gap-2 mt-6 sm:mt-8 max-w-2xl mx-auto px-2">
+          <div className="flex flex-wrap justify-center items-center gap-2 mt-5 sm:mt-6 max-w-2xl mx-auto px-2">
             {[
               { label: "Govt. job", query: "Government circular jobs in Bangladesh" },
               { label: "Internship", query: "Software Engineering internships in Dhaka" },
@@ -369,7 +448,32 @@ export default function JobHunter() {
             </div>
           )}
 
-          {jobs.map((job, i) => {
+          {jobs.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-2xl border border-blue-100 bg-white p-3 shadow-lg shadow-slate-200/40 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#1E3A8A]">Search results</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">{jobs.length} opportunities found. Sorted for your review.</p>
+              </div>
+              <label className="flex items-center gap-2 rounded-xl border border-blue-100 bg-[#EFF6FF] px-3 py-2 text-sm font-bold text-[#1E3A8A] shadow-inner shadow-blue-100/60">
+                <SlidersHorizontal size={17} />
+                <span className="hidden sm:inline">Sort</span>
+                <select
+                  value={sortMode}
+                  onChange={(event) => setSortMode(event.target.value as SortMode)}
+                  className="min-w-[180px] bg-transparent text-sm font-bold text-[#1E3A8A] outline-none"
+                  aria-label="Sort job results"
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {sortedJobs.map((job, i) => {
             const currentStatus = trackingStates[job.url];
             const displayCompany = job.company || getSourceName(job.url);
 
@@ -518,8 +622,8 @@ export default function JobHunter() {
       )}
 
       {assistantOpen && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-end bg-slate-950/25 px-3 py-3 backdrop-blur-sm sm:px-5 sm:py-5">
-          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-blue-100 bg-white shadow-2xl shadow-slate-950/20">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/30 px-2 py-2 backdrop-blur-sm sm:items-center sm:justify-end sm:px-5 sm:py-5">
+          <div className="flex h-[min(92vh,820px)] w-full max-w-2xl flex-col overflow-hidden rounded-[1.35rem] border border-blue-100 bg-white shadow-2xl shadow-slate-950/20 transition-all duration-200 sm:h-[min(88vh,820px)] sm:rounded-3xl">
             <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-white px-4 py-3 sm:px-5">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50">
@@ -543,7 +647,7 @@ export default function JobHunter() {
             </div>
 
             {selectedAssistantJob ? (
-              <div className="overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-hidden">
                 <AIChat
                   compact
                   jobContext={selectedAssistantJob}

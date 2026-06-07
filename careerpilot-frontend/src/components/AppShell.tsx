@@ -3,9 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
+import ProfileAvatar from "@/components/ProfileAvatar";
+import ThemeToggle from "@/components/ThemeToggle";
+import { CAREER_PROFILE_UPDATED_EVENT, loadCareerProfile } from "@/lib/profileData";
 
 const navItems = [
   { href: "/cv-upload", label: "CV", icon: "/brand/cv.png" },
@@ -28,7 +30,10 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const isWelcome = pathname === "/" || pathname === "/welcome";
   const isAuth = pathname === "/auth";
-  const isPublicRoute = isWelcome || isAuth;
+  const isInfoPage = pathname === "/about" || pathname === "/contact";
+  const isPublicRoute = isWelcome || isAuth || isInfoPage;
+  const showAppFooter = !isWelcome && !isAuth;
+  const [profile, setProfile] = useState(() => loadCareerProfile(user?.uid, user));
 
   useEffect(() => {
     if (!loading && !user && !isPublicRoute) {
@@ -36,9 +41,25 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     }
   }, [isPublicRoute, loading, router, user]);
 
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const refreshProfile = () => {
+      setProfile(loadCareerProfile(user.uid, user));
+    };
+
+    refreshProfile();
+    window.addEventListener(CAREER_PROFILE_UPDATED_EVENT, refreshProfile);
+    window.addEventListener("storage", refreshProfile);
+    return () => {
+      window.removeEventListener(CAREER_PROFILE_UPDATED_EVENT, refreshProfile);
+      window.removeEventListener("storage", refreshProfile);
+    };
+  }, [user]);
+
   if (!isPublicRoute && loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4">
+      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 dark:bg-slate-950">
         <div className="text-center">
           <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-blue-100 border-b-[#1E3A8A]" />
           <p className="text-sm font-bold text-slate-600">Checking your secure session...</p>
@@ -49,7 +70,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
 
   if (!isPublicRoute && !user) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4">
+      <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-4 dark:bg-slate-950">
         <div className="text-center">
           <p className="text-sm font-bold text-slate-600">Redirecting to sign in...</p>
         </div>
@@ -60,7 +81,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       {!isPublicRoute && (
-        <nav className="sticky top-0 z-50 w-full border-b border-blue-100 bg-white/90 shadow-sm shadow-slate-200/70 backdrop-blur-md">
+        <nav className="sticky top-0 z-50 w-full border-b border-blue-100 bg-white/90 shadow-sm shadow-slate-200/70 backdrop-blur-md dark:border-blue-400/15 dark:bg-slate-950/88 dark:shadow-slate-950/70">
           <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-2.5 min-[420px]:gap-3 sm:px-6">
             <Link href="/welcome" className="flex shrink-0 items-center transition hover:opacity-90" aria-label="CareerPilot welcome">
               <Image
@@ -78,7 +99,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="group flex shrink-0 items-center gap-1 rounded-xl px-1.5 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3A8A] hover:shadow-sm min-[420px]:gap-1.5 min-[420px]:px-2 min-[420px]:py-2 min-[420px]:text-xs sm:gap-2 sm:px-3.5 sm:text-sm"
+                  title={item.label}
+                  className="group flex shrink-0 items-center gap-1 rounded-xl px-1.5 py-1.5 text-[11px] font-bold text-slate-600 transition hover:bg-white hover:text-[#1E3A8A] hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-100 min-[420px]:gap-1.5 min-[420px]:px-2 min-[420px]:py-2 min-[420px]:text-xs sm:gap-2 sm:px-3.5 sm:text-sm"
                 >
                   <Image
                     src={item.icon}
@@ -91,7 +113,7 @@ function ShellContent({ children }: { children: React.ReactNode }) {
                         : "h-3.5 w-3.5 object-contain opacity-80 transition group-hover:opacity-100 min-[420px]:h-4 min-[420px]:w-4 sm:h-5 sm:w-5"
                     }
                   />
-                  <span className="sm:hidden">{item.shortLabel || item.label}</span>
+                  <span className="hidden min-[500px]:inline sm:hidden">{item.shortLabel || item.label}</span>
                   <span className="hidden sm:inline">{item.label}</span>
                 </Link>
               ))}
@@ -99,17 +121,54 @@ function ShellContent({ children }: { children: React.ReactNode }) {
 
             <Link
               href="/dashboard"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-sm font-black text-[#1E3A8A] shadow-sm transition hover:border-blue-200 hover:bg-blue-50 sm:h-10 sm:w-10"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-sm font-black text-[#1E3A8A] shadow-sm transition hover:border-blue-200 hover:bg-blue-50 dark:border-blue-400/20 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-slate-800 sm:h-10 sm:w-10"
               aria-label="Open dashboard"
               title="Dashboard"
             >
-              <UserRound size={18} strokeWidth={2.4} />
+              <ProfileAvatar profile={profile} fallbackName={user?.displayName || user?.email} size="nav" />
             </Link>
+
+            <ThemeToggle compact />
           </div>
         </nav>
       )}
 
       <div className="flex-1">{children}</div>
+      {showAppFooter && <AppFooter />}
     </>
+  );
+}
+
+function AppFooter() {
+  return (
+    <footer className="border-t border-blue-100 bg-white px-5 py-8 shadow-inner shadow-blue-50/70 dark:border-blue-400/15 dark:bg-slate-950">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <Link href="/welcome" className="inline-flex items-center transition hover:opacity-90" aria-label="CareerPilot welcome">
+            <Image src="/brand/logo.png" alt="CareerPilot" width={210} height={80} className="h-10 w-auto" />
+          </Link>
+          <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
+            CareerPilot helps job seekers turn CV data into matched opportunities, guidance, and application progress.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 text-sm font-black text-[#1E3A8A] dark:text-blue-100 sm:items-end">
+          <div className="flex flex-wrap gap-4">
+            <Link href="/about" className="transition hover:text-[#1D4ED8]">
+              About
+            </Link>
+            <Link href="/contact" className="transition hover:text-[#1D4ED8]">
+              Contact
+            </Link>
+            <Link href="/welcome" className="transition hover:text-[#1D4ED8]">
+              Home
+            </Link>
+          </div>
+          <p className="text-xs font-bold text-slate-400">
+            © {new Date().getFullYear()} CareerPilot. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
   );
 }

@@ -44,9 +44,9 @@ function AssistantContent() {
 
   if (!profileReady) {
     return (
-      <main className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 text-slate-900">
+      <main className="min-h-screen bg-[#f8f9fa] px-4 py-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:py-6">
         <div className="mx-auto max-w-5xl">
-          <header className="mb-8">
+          <header className="mb-5">
             <p className="text-xs font-bold uppercase tracking-widest text-[#1E3A8A]">
               CareerPilot Assistant
             </p>
@@ -58,7 +58,7 @@ function AssistantContent() {
             </p>
           </header>
 
-          <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-xl shadow-slate-200/70 sm:p-6">
+          <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-xl shadow-slate-200/70 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:p-6">
             <p className="text-sm font-bold text-[#1E3A8A]">Profile required</p>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
               CareerPilot does not generate assistant responses without your CV context. This keeps the guidance specific to your actual education, experience, skills, and projects.
@@ -84,9 +84,9 @@ function AssistantContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-10 text-slate-900">
+    <main className="min-h-screen bg-[#f8f9fa] px-4 py-5 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:py-6">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-8">
+        <header className="mb-5">
           <p className="text-xs font-bold uppercase tracking-widest text-[#1E3A8A]">
             CareerPilot Assistant
           </p>
@@ -99,7 +99,7 @@ function AssistantContent() {
         </header>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6">
-          <section className="min-w-0 rounded-2xl border border-blue-100 bg-[#F8FBFF] p-3 shadow-xl shadow-slate-200/70 sm:p-4 md:p-6">
+          <section className="min-w-0 rounded-2xl border border-blue-100 bg-[#F8FBFF] p-3 shadow-xl shadow-slate-200/70 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:p-4 md:p-6">
             <AIChat initialPrompt={selectedPrompt.text} promptVersion={selectedPrompt.version} />
           </section>
 

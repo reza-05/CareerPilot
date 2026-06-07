@@ -1,4 +1,5 @@
 export type CareerProfile = {
+  photoDataUrl: string;
   firstName: string;
   lastName: string;
   headline: string;
@@ -34,6 +35,7 @@ export type CareerProfile = {
 };
 
 export const defaultCareerProfile: CareerProfile = {
+  photoDataUrl: "",
   firstName: "",
   lastName: "",
   headline: "",
@@ -67,6 +69,8 @@ export const defaultCareerProfile: CareerProfile = {
   projects: "",
   certs: "",
 };
+
+export const CAREER_PROFILE_UPDATED_EVENT = "careerpilot:profile-updated";
 
 export function getCareerProfileKey(userId: string) {
   return `careerpilot_career_profile_${userId}`;
@@ -114,6 +118,13 @@ export function loadCareerProfile(
 export function saveCareerProfile(userId: string, profile: CareerProfile) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(getCareerProfileKey(userId), JSON.stringify(profile));
+  window.setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent(CAREER_PROFILE_UPDATED_EVENT, {
+        detail: { userId },
+      }),
+    );
+  }, 0);
 }
 
 export function normalizeSkillList(skills: unknown): string[] {

@@ -1,8 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { DM_Sans } from "next/font/google";
 import {
+  ArrowRight,
+  AlertTriangle,
+  BellRing,
   Briefcase,
   CalendarCheck2,
   CalendarDays,
@@ -11,7 +15,8 @@ import {
   GripVertical,
   ListChecks,
   Plus,
-  Sparkles,
+  Save,
+  Search,
   Target,
   Trash2,
   TrendingUp,
@@ -80,6 +85,8 @@ export default function TrackerDashboard() {
   const [aiNudge, setAiNudge] = useState("Analyzing application progress...");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [deadlineInputs, setDeadlineInputs] = useState<Record<number, string>>({});
+  const [deadlineSavingId, setDeadlineSavingId] = useState<number | null>(null);
   const [currentDate] = useState(new Date());
   const goalsHydratedRef = useRef(false);
   const activityHydratedRef = useRef(false);
@@ -109,7 +116,7 @@ export default function TrackerDashboard() {
       }
     } catch (err) {
       console.error("Failed to sync tracker data:", err);
-      setNotice("Tracker data could not be synced. Please make sure the app services are running.");
+      setNotice("Tracker data could not be refreshed right now. Please try again in a moment.");
     }
   }, [userId]);
 
@@ -290,6 +297,42 @@ export default function TrackerDashboard() {
     }
   };
 
+  const handleSaveDeadline = async (job: TrackedJob) => {
+    const selectedDeadline = deadlineInputs[job.id];
+    if (!selectedDeadline) return;
+
+    setDeadlineSavingId(job.id);
+    setNotice("");
+
+    try {
+      const res = await fetch(`/api/tracker/${job.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        body: JSON.stringify({
+          application_deadline: selectedDeadline,
+          deadline_date: selectedDeadline,
+        }),
+      });
+
+      if (res.ok) {
+        const updatedJob = await res.json();
+        setJobs((prev) => prev.map((item) => (item.id === job.id ? updatedJob : item)));
+        setDeadlineInputs((prev) => {
+          const next = { ...prev };
+          delete next[job.id];
+          return next;
+        });
+      } else {
+        setNotice("Deadline could not be saved. Please try again.");
+      }
+    } catch (err) {
+      console.error("Error updating deadline:", err);
+      setNotice("Deadline could not be saved. Please try again in a moment.");
+    } finally {
+      setDeadlineSavingId(null);
+    }
+  };
+
   const handleDragStart = (e: React.DragEvent, cardId: number) => {
     e.dataTransfer.setData("text/plain", cardId.toString());
   };
@@ -401,6 +444,13 @@ export default function TrackerDashboard() {
       .sort((a, b) => String(a.deadline_date).localeCompare(String(b.deadline_date)))[0];
   }, [jobs, currentDate]);
 
+  const jobsMissingDeadline = useMemo(() => {
+    return jobs
+      .filter((job) => !job.deadline_date)
+      .filter((job) => !job.application_deadline || /open until filled|not specified|n\/a/i.test(job.application_deadline))
+      .slice(0, 3);
+  }, [jobs]);
+
   const suggestedGoals = useMemo(() => {
     const appliedCount = jobs.filter((job) => job.status === "Applied").length;
     const interviewingCount = jobs.filter((job) => job.status === "Interviewing").length;
@@ -475,6 +525,47 @@ export default function TrackerDashboard() {
     return streak;
   }, [activityEvents, currentDate]);
 
+  const suggestedSearches = useMemo(() => {
+    const [firstSkill, secondSkill, thirdSkill] = profileSkills;
+    const roleSearch = firstSkill || "Software engineer";
+    const internshipSearch = secondSkill || firstSkill || "Technology";
+    const remoteSearch = thirdSkill || secondSkill || firstSkill || "Developer";
+
+    return [
+      `${roleSearch} jobs in Bangladesh`,
+      `${internshipSearch} internship in Dhaka`,
+      `Remote ${remoteSearch} jobs open to Bangladesh`,
+    ];
+  }, [profileSkills]);
+
+  const proactiveNudge = useMemo(() => {
+    if (activeAlert) {
+      return `Upcoming deadline: ${activeAlert.role} at ${activeAlert.company} is due on ${formatDeadline(activeAlert.deadline_date)}. Review the role and prepare your next step today.`;
+    }
+
+    if (weeklyApplications === 0) {
+      return "You have not tracked an application this week. Start with one focused search below and add the strongest match to your tracker.";
+    }
+
+    if (weeklyApplications < 3) {
+      return `You have tracked ${weeklyApplications} application${weeklyApplications > 1 ? "s" : ""} this week. Add ${3 - weeklyApplications} more high-fit role${3 - weeklyApplications > 1 ? "s" : ""} to build stronger momentum.`;
+    }
+
+    if (weeklyGoals.length > 0 && weeklyGoalPercent < 100) {
+      return `Good application momentum. Complete ${weeklyGoals.length - completedGoals} remaining goal${weeklyGoals.length - completedGoals > 1 ? "s" : ""} to keep this week on track.`;
+    }
+
+    return aiNudge || "Your tracker is active. Keep reviewing fit, deadlines, and next steps consistently.";
+  }, [
+    activeAlert,
+    aiNudge,
+    completedGoals,
+    formatDeadline,
+    weeklyApplications,
+    weeklyGoalPercent,
+    weeklyGoals.length,
+  ]);
+
   const progressCards = [
     {
       label: "This Week",
@@ -544,11 +635,11 @@ export default function TrackerDashboard() {
     .join(" ");
 
   return (
-    <div className={`min-h-screen bg-[#f8f9fa] text-slate-900 antialiased ${dmSans.className}`}>
+    <div className={`min-h-screen bg-[#f8f9fa] text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 ${dmSans.className}`}>
       <div className="absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-blue-50 via-white to-transparent pointer-events-none" />
 
-      <div className="relative mx-auto max-w-7xl px-3 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-12">
-        <header className="mb-6 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl shadow-slate-200/60 sm:mb-8 sm:p-6">
+      <div className="relative mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+        <header className="mb-5 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl shadow-slate-200/60 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:mb-6 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.25em] text-[#1E3A8A]">
@@ -582,11 +673,43 @@ export default function TrackerDashboard() {
             </div>
           </div>
 
-          <div className="mt-6 flex items-start gap-3 rounded-xl border border-blue-100 bg-[#EFF6FF] px-4 py-3 text-sm text-slate-600">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#1E3A8A]" />
-            <p>
-              <span className="font-bold text-[#1E3A8A]">Progress insight:</span> {aiNudge}
-            </p>
+          <div className="mt-6 rounded-2xl border border-blue-100 bg-[#EFF6FF] p-4 shadow-sm shadow-blue-950/5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-100 bg-white text-[#1E3A8A] shadow-sm">
+                  <BellRing className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-[#1E3A8A]">
+                    AI Nudge
+                  </p>
+                  <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-600">
+                    {proactiveNudge}
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href={`/job-hunter?query=${encodeURIComponent(suggestedSearches[0])}`}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/15 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1D4ED8]"
+              >
+                Find matching jobs
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              {suggestedSearches.map((search) => (
+                <Link
+                  key={search}
+                  href={`/job-hunter?query=${encodeURIComponent(search)}`}
+                  className="group flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 py-2 text-xs font-bold text-[#1E3A8A] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50"
+                >
+                  <Search className="h-4 w-4 shrink-0 text-[#1E3A8A]/70 transition group-hover:text-[#1E3A8A]" />
+                  <span className="line-clamp-2">{search}</span>
+                </Link>
+              ))}
+            </div>
           </div>
 
           {notice && (
@@ -594,15 +717,54 @@ export default function TrackerDashboard() {
               {notice}
             </div>
           )}
+
+          {jobsMissingDeadline.length > 0 && (
+            <div className="mt-4 space-y-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm shadow-red-100/70">
+              {jobsMissingDeadline.map((job) => (
+                <div key={job.id} className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-700">
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black">Deadline missing for {job.role}.</p>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-red-700">
+                        Add a manual deadline to track this application accurately.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="date"
+                      value={deadlineInputs[job.id] || ""}
+                      onChange={(event) => setDeadlineInputs((prev) => ({ ...prev, [job.id]: event.target.value }))}
+                      className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none transition focus:border-red-400"
+                      aria-label={`Deadline for ${job.role}`}
+                    />
+                    <button
+                      type="button"
+                      disabled={!deadlineInputs[job.id] || deadlineSavingId === job.id}
+                      onClick={() => handleSaveDeadline(job)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-4 py-2 text-sm font-black text-white shadow-lg shadow-blue-950/15 transition hover:bg-[#1D4ED8] disabled:bg-slate-200 disabled:text-slate-500"
+                    >
+                      <Save className="h-4 w-4" />
+                      {deadlineSavingId === job.id ? "Saving..." : "Save deadline"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </header>
 
-        <section className="mb-6 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl shadow-slate-200/60 sm:mb-8 sm:p-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <section className="mb-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-lg shadow-slate-200/50 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:p-5">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#1E3A8A]">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#1E3A8A]">
                 Progress Dashboard
               </p>
-              <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">
+              <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950 sm:text-xl">
                 Weekly momentum at a glance
               </h2>
             </div>
@@ -620,18 +782,18 @@ export default function TrackerDashboard() {
               return (
                 <div
                   key={card.label}
-                  className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-4"
                 >
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#1E3A8A] ring-1 ring-blue-100">
-                      <Icon className="h-5 w-5" />
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[#1E3A8A] ring-1 ring-blue-100">
+                      <Icon className="h-4 w-4" />
                     </div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                       {card.label}
                     </p>
                   </div>
                   <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold tracking-tight text-[#1E3A8A]">{card.value}</span>
+                    <span className="text-2xl font-black tracking-tight text-[#1E3A8A] sm:text-3xl">{card.value}</span>
                     <span className="pb-1 text-xs font-bold uppercase text-slate-500">{card.unit}</span>
                   </div>
                   <p className="mt-1 text-xs font-semibold text-slate-500">{card.helper}</p>
@@ -640,7 +802,7 @@ export default function TrackerDashboard() {
             })}
           </div>
 
-          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-blue-100 bg-[#F8FBFF] p-4">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
@@ -710,7 +872,23 @@ export default function TrackerDashboard() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
+        <section className="rounded-[1.5rem] border border-blue-100 bg-gradient-to-br from-white via-[#F8FBFF] to-[#EEF4FF] p-4 shadow-2xl shadow-blue-100/50 sm:p-5">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#1E3A8A]">
+                Application Workspace
+              </p>
+              <h2 className="mt-1 text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
+                Move roles, deadlines, and goals forward
+              </h2>
+            </div>
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-black text-[#1E3A8A] shadow-sm">
+              <ListChecks className="h-4 w-4" />
+              {jobs.length} tracked
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-6">
           <main className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             {KANBAN_COLUMNS.map((col) => {
               const columnJobs = jobs.filter((j) => j.status === col);
@@ -720,7 +898,7 @@ export default function TrackerDashboard() {
                   key={col}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, col)}
-                  className="flex min-h-[340px] flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60 sm:min-h-[420px] xl:min-h-[520px]"
+                  className="flex min-h-[340px] flex-col rounded-2xl border border-blue-100 bg-white p-4 shadow-lg shadow-blue-100/60 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-100/80 sm:min-h-[420px] xl:min-h-[520px]"
                 >
                   <div className="mb-4 border-b border-slate-100 pb-3">
                     <div className="flex items-center justify-between">
@@ -928,12 +1106,34 @@ export default function TrackerDashboard() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60">
-              <div className="mb-4 flex items-center gap-2">
-                <Target className="h-4 w-4 text-[#1E3A8A]" />
-                <div>
+            <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-xl shadow-blue-100/70">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-[#1E3A8A] ring-1 ring-blue-100">
+                    <Target className="h-4 w-4" />
+                  </div>
+                  <div>
                   <h3 className="text-sm font-bold text-slate-950">Goal Setting</h3>
                   <p className="text-xs text-slate-500">Plan weekly application and learning targets.</p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-[#1E3A8A] px-3 py-1 text-xs font-black text-white shadow-sm">
+                  {weeklyGoalPercent}%
+                </span>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-blue-100 bg-[#F8FBFF] p-3">
+                <div className="mb-2 flex items-center justify-between text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  <span>Weekly Goals</span>
+                  <span className="text-[#1E3A8A]">
+                    {completedGoals}/{weeklyGoals.length || 0} done
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-white ring-1 ring-blue-100">
+                  <div
+                    className="h-full rounded-full bg-[#1E3A8A] transition-all duration-300"
+                    style={{ width: `${weeklyGoalPercent}%` }}
+                  />
                 </div>
               </div>
 
@@ -962,7 +1162,7 @@ export default function TrackerDashboard() {
               </form>
 
               {suggestedGoals.length > 0 && (
-                <div className="mb-4 space-y-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                <div className="mb-4 space-y-2 rounded-2xl border border-blue-100 bg-[#EEF4FF] p-3 shadow-inner shadow-blue-100/50">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-[#1E3A8A]">
                     Suggested from your tracker
                   </p>
@@ -971,7 +1171,7 @@ export default function TrackerDashboard() {
                       key={goal}
                       type="button"
                       onClick={() => handleAddGoal(goal)}
-                      className="block w-full rounded-lg bg-white px-3 py-2 text-left text-xs font-semibold text-slate-600 ring-1 ring-blue-100 transition hover:text-[#1E3A8A]"
+                      className="block w-full rounded-xl bg-white px-3 py-2 text-left text-xs font-bold text-slate-700 ring-1 ring-blue-100 transition hover:-translate-y-0.5 hover:text-[#1E3A8A] hover:shadow-sm"
                     >
                       + {goal}
                     </button>
@@ -1026,6 +1226,7 @@ export default function TrackerDashboard() {
             </section>
           </aside>
         </div>
+        </section>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DM_Sans } from "next/font/google";
 import {
@@ -19,6 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -50,16 +52,16 @@ const features = [
 
 const steps = [
   {
-    title: "Sign in securely",
-    copy: "Use Google or email access so every user's CV, tracker, and chat stay separate.",
+    title: "Create a Private Workspace",
+    copy: "Your CV profile, saved roles, guidance history, and progress stay connected only to your account.",
   },
   {
-    title: "Prepare your CV",
-    copy: "Upload a resume or build one manually. Replacing the CV refreshes job and assistant context.",
+    title: "Build Your Career Profile",
+    copy: "Upload a resume or complete your profile manually, then update it whenever your experience changes.",
   },
   {
-    title: "Run the workflow",
-    copy: "Search roles, ask the assistant, track applications, and watch your progress update.",
+    title: "Move With Clarity",
+    copy: "Review matched roles, ask for next-step guidance, track deadlines, and keep weekly momentum visible.",
   },
 ];
 
@@ -100,7 +102,7 @@ export default function WelcomePage() {
   };
 
   return (
-    <main className={`${dmSans.className} min-h-screen overflow-hidden bg-white text-slate-950`}>
+    <main className={`${dmSans.className} min-h-screen overflow-hidden bg-white text-slate-950 dark:bg-slate-950 dark:text-slate-100`}>
       <WelcomeNavbar
         isScrolled={isScrolled}
         isSignedIn={isSignedIn}
@@ -110,26 +112,31 @@ export default function WelcomePage() {
         onSignup={() => goToAuth("signup")}
       />
 
-      <section className="relative overflow-hidden bg-[linear-gradient(180deg,#F8FBFF_0%,#FFFFFF_58%,#F8FAFC_100%)] px-5 pb-16 pt-28 sm:px-8 lg:px-14 lg:pb-20 lg:pt-36">
+      <section className="relative overflow-hidden bg-[linear-gradient(180deg,#F8FBFF_0%,#FFFFFF_58%,#F8FAFC_100%)] px-5 pb-10 pt-[5.5rem] dark:bg-[linear-gradient(180deg,#0F172A_0%,#111827_58%,#020617_100%)] sm:px-8 sm:pb-12 sm:pt-24 lg:px-14 lg:pb-14 lg:pt-[6.5rem]">
         <div className="absolute left-0 top-20 h-72 w-72 rounded-full bg-blue-100/70 blur-3xl" />
         <div className="absolute right-[-8rem] top-52 h-96 w-96 rounded-full bg-[#DBEAFE]/80 blur-3xl" />
 
-        <div className="relative z-10 mx-auto grid max-w-[1500px] items-center gap-12 lg:grid-cols-[0.92fr_1.08fr]">
+        <div className="pointer-events-none absolute right-5 top-[5.25rem] z-20 hidden items-center gap-2 rounded-full border border-blue-200 bg-white/85 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#1E3A8A] shadow-sm shadow-blue-100/80 backdrop-blur dark:border-blue-400/20 dark:bg-slate-900/80 dark:text-blue-100 sm:flex lg:right-14">
+          <Sparkles className="h-4 w-4" />
+          AI-Powered Career Workspace
+        </div>
+
+        <div className="relative z-10 mx-auto grid max-w-[1500px] items-center gap-7 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10">
           <div className="max-w-3xl">
-            <div className="mb-6 inline-flex animate-pulse items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-[#1E3A8A] shadow-sm shadow-blue-100/80 backdrop-blur">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/80 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#1E3A8A] shadow-sm shadow-blue-100/80 backdrop-blur dark:border-blue-400/20 dark:bg-slate-900/80 dark:text-blue-100 sm:hidden">
               <Sparkles className="h-4 w-4" />
-              AI Career Workspace
+              AI-Powered Career Workspace
             </div>
 
-            <h1 className="text-5xl font-black leading-[1.02] tracking-normal text-[#17435B] sm:text-6xl lg:text-7xl xl:text-8xl">
+            <h1 className="max-w-4xl text-[2.65rem] font-black leading-[1.04] tracking-normal text-[#17435B] dark:text-slate-50 sm:text-5xl md:text-6xl lg:text-[4.55rem] xl:text-[5.35rem]">
               Find Jobs That <span className="text-[#1E3A8A]">Actually Match</span> Your CV
             </h1>
 
-            <p className="mt-7 max-w-2xl text-lg font-semibold leading-8 text-slate-600 sm:text-xl">
+            <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">
               Upload your resume, get fit-ranked opportunities, ask for CV-grounded guidance, and track every application from one focused workspace.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
                 onClick={primaryAction}
@@ -147,7 +154,7 @@ export default function WelcomePage() {
               </button>
             </div>
 
-            <div className="mt-8 grid gap-3 text-sm font-bold text-slate-600 sm:grid-cols-3">
+            <div className="mt-6 grid gap-3 text-sm font-bold text-slate-600 dark:text-slate-300 sm:grid-cols-3">
               {["CV-ready matching", "Deadline calendar", "Weekly progress"].map((item) => (
                 <div key={item} className="flex items-center gap-2 rounded-xl border border-blue-100 bg-white/85 px-3 py-3 shadow-sm backdrop-blur">
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-[#2563EB]" />
@@ -190,11 +197,11 @@ function WelcomeNavbar({
     <header
       className={`fixed inset-x-0 top-0 z-50 border-b transition duration-300 ${
         isScrolled
-          ? "border-blue-200/90 bg-[#EEF5FF]/[0.92] shadow-lg shadow-blue-950/10 backdrop-blur-xl"
-          : "border-blue-100/70 bg-white/[0.82] shadow-sm shadow-blue-950/5 backdrop-blur-xl"
+            ? "border-blue-200/90 bg-[#EEF5FF]/[0.92] shadow-lg shadow-blue-950/10 backdrop-blur-xl dark:border-blue-400/20 dark:bg-slate-950/[0.92] dark:shadow-slate-950/70"
+            : "border-blue-100/70 bg-white/[0.82] shadow-sm shadow-blue-950/5 backdrop-blur-xl dark:border-blue-400/15 dark:bg-slate-950/[0.82] dark:shadow-slate-950/60"
       }`}
     >
-      <nav className="mx-auto flex h-20 max-w-[1500px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-14">
+      <nav className="mx-auto flex h-[4.25rem] max-w-[1500px] items-center justify-between gap-4 px-5 sm:h-[4.5rem] sm:px-8 lg:px-14">
         <button type="button" onClick={onLogo} aria-label="CareerPilot welcome" className="flex shrink-0 items-center transition hover:opacity-90">
           <Image
             src="/brand/logo.png"
@@ -206,33 +213,36 @@ function WelcomeNavbar({
           />
         </button>
 
-        {isSignedIn ? (
-          <button
-            type="button"
-            onClick={onCv}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-5 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#1D4ED8] sm:px-6"
-          >
-            Open CV
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {isSignedIn ? (
+            <button
+              type="button"
+              onClick={onCv}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-5 text-sm font-black text-white shadow-lg shadow-blue-900/15 transition hover:bg-[#1D4ED8] sm:px-6"
+            >
+              Open CV
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          ) : (
+            <>
             <button
               type="button"
               onClick={onLogin}
-              className="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-black text-[#1E3A8A] transition hover:bg-blue-50 sm:px-6"
+              className="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-black text-[#1E3A8A] transition hover:bg-blue-50 dark:text-blue-100 dark:hover:bg-slate-800 sm:px-6"
             >
               Log In
             </button>
             <button
               type="button"
               onClick={onSignup}
-              className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-[#1E3A8A] bg-white px-4 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#1E3A8A] hover:text-white sm:px-8"
+              className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-[#1E3A8A] bg-white px-4 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#1E3A8A] hover:text-white dark:border-blue-300 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-[#1E3A8A] sm:px-8"
             >
               Sign Up
             </button>
-          </div>
-        )}
+            </>
+          )}
+          <ThemeToggle />
+        </div>
       </nav>
     </header>
   );
@@ -240,7 +250,7 @@ function WelcomeNavbar({
 
 function HeroGraphic() {
   return (
-    <div className="relative mx-auto min-h-[560px] w-full max-w-3xl lg:max-w-none">
+    <div className="relative mx-auto min-h-[380px] w-full max-w-2xl sm:min-h-[440px] lg:min-h-[500px] lg:max-w-none">
       <div className="absolute left-[8%] top-[8%] hidden text-3xl font-black text-[#F59E0B] sm:block">+</div>
       <div className="absolute right-[15%] top-[4%] hidden h-36 w-36 rounded-full border-[26px] border-[#D7E6EF] sm:block" />
       <div className="absolute inset-x-[6%] top-[15%] h-[74%] rounded-full bg-[#EAF1F7]" />
@@ -440,7 +450,7 @@ function FeaturesSection() {
       <div className="mx-auto max-w-[1400px]">
         <div className="max-w-2xl">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-[#1E3A8A]">Features</p>
-          <h2 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">Four connected pillars, one career workflow.</h2>
+          <h2 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">Four connected pillars, one career command center.</h2>
         </div>
 
         <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -472,7 +482,7 @@ function HowItWorksSection({ isSignedIn, onAction }: { isSignedIn: boolean; onAc
       <div className="mx-auto max-w-[1200px]">
         <div className="text-center">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-[#1E3A8A]">How it works</p>
-          <h2 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">From sign in to progress tracking in three steps.</h2>
+          <h2 className="mt-3 text-3xl font-black text-slate-950 sm:text-4xl">From CV readiness to measurable progress in three steps.</h2>
         </div>
 
         <div className="relative mt-12 grid gap-5 md:grid-cols-3">
@@ -514,7 +524,7 @@ function CtaSection({ isSignedIn, onAction }: { isSignedIn: boolean; onAction: (
           </div>
           <h2 className="text-3xl font-black leading-tight sm:text-5xl">Build your career workspace around your own CV.</h2>
           <p className="mt-5 text-base font-semibold leading-8 text-blue-50">
-            Sign in, save your profile, search better matches, and keep every application decision visible.
+            Save your profile, discover better matches, and keep every application decision visible in one protected workspace.
           </p>
           <button
             type="button"
@@ -537,7 +547,13 @@ function Footer({ onLogo }: { onLogo: () => void }) {
         <button type="button" onClick={onLogo} className="flex items-center transition hover:opacity-90" aria-label="CareerPilot welcome">
           <Image src="/brand/logo.png" alt="CareerPilot" width={220} height={80} className="h-10 w-auto" />
         </button>
-        <p className="text-sm font-semibold text-slate-500">AI-powered career workspace for CV matching, guidance, and tracking.</p>
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex flex-wrap gap-4 text-sm font-black text-[#1E3A8A]">
+            <Link href="/about" className="transition hover:text-[#1D4ED8]">About</Link>
+            <Link href="/contact" className="transition hover:text-[#1D4ED8]">Contact</Link>
+          </div>
+          <p className="text-sm font-semibold text-slate-500">© {new Date().getFullYear()} CareerPilot. All rights reserved.</p>
+        </div>
       </div>
     </footer>
   );

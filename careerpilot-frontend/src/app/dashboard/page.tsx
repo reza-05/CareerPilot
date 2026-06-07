@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowRight, BriefcaseBusiness, CheckCircle2, GraduationCap, LogOut, Mail, Save, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import ProfileAvatar from "@/components/ProfileAvatar";
 import { CareerProfile, loadCareerProfile, saveCareerProfile } from "@/lib/profileData";
 
 export default function DashboardPage() {
@@ -48,14 +49,20 @@ export default function DashboardPage() {
     setSaved(true);
   };
 
+  const handlePhotoChange = (photoDataUrl: string) => {
+    if (!user?.uid) return;
+    const nextProfile = { ...profile, photoDataUrl };
+    setProfile(nextProfile);
+    saveCareerProfile(user.uid, nextProfile);
+    setSaved(true);
+  };
+
   return (
-    <main className="min-h-screen bg-[#F8FAFC] px-4 py-8 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#F8FAFC] px-4 py-5 dark:bg-slate-950 sm:px-6 sm:py-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <section className="mb-6 grid gap-4 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60 md:grid-cols-[1fr_auto] md:items-center md:p-7">
+        <section className="mb-5 grid gap-4 rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 md:grid-cols-[1fr_auto] md:items-center md:p-6">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#1E3A8A] text-xl font-black text-white shadow-lg shadow-blue-900/20">
-              {profile.firstName ? profile.firstName.slice(0, 1).toUpperCase() : <UserRound size={28} />}
-            </div>
+            <ProfileAvatar profile={profile} fallbackName={user?.displayName || user?.email} size="md" editable onPhotoChange={handlePhotoChange} />
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-[#1E3A8A]">Dashboard</p>
               <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{displayName}</h1>
@@ -82,6 +89,15 @@ export default function DashboardPage() {
         <form onSubmit={handleSave} className="grid gap-6 lg:grid-cols-[1fr_340px]">
           <div className="space-y-6">
             <Panel title="Personal Profile" icon={<UserRound size={20} />}>
+              <div className="mb-5 flex items-center gap-4 rounded-2xl border border-blue-100 bg-blue-50/60 p-4 dark:border-blue-400/20 dark:bg-slate-950/60">
+                <ProfileAvatar profile={profile} fallbackName={user?.displayName || user?.email} size="md" editable onPhotoChange={handlePhotoChange} />
+                <div>
+                  <p className="text-sm font-black text-slate-900 dark:text-slate-100">Profile photo</p>
+                  <p className="mt-1 text-sm font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                    Optional. Used only for your dashboard, navbar, and manual CV preview.
+                  </p>
+                </div>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="First Name" name="firstName" value={profile.firstName} onChange={handleChange} />
                 <Field label="Last Name" name="lastName" value={profile.lastName} onChange={handleChange} />
@@ -136,7 +152,7 @@ export default function DashboardPage() {
             </Panel>
           </div>
 
-          <aside className="h-fit rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60 lg:sticky lg:top-24">
+          <aside className="h-fit rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 lg:sticky lg:top-24">
             <h2 className="text-lg font-black text-slate-950">Profile Actions</h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
               Saved details will fill your CV builder.
@@ -166,7 +182,7 @@ export default function DashboardPage() {
 
 function Panel({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60 sm:p-6">
+    <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm shadow-blue-100/60 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:p-6">
       <h2 className="mb-5 flex items-center gap-2 text-xl font-black tracking-tight text-slate-950">
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-[#1E3A8A]">{icon}</span>
         {title}
