@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { buildAuthHeaders } from '@/lib/authHeaders';
 import { loadCvUploadState, markCvUploaded, syncCvUploadStateFromServer } from '@/lib/userSession';
 import { loadCareerProfile, normalizeSkillList, saveCareerProfile } from '@/lib/profileData';
 
@@ -25,7 +26,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
     const timer = window.setTimeout(() => {
       setCvState(loadCvUploadState(user?.uid));
       if (user?.uid) {
-        void syncCvUploadStateFromServer(user.uid).then((syncedState) => {
+        void syncCvUploadStateFromServer(user.uid, user).then((syncedState) => {
           if (!syncedState.uploaded) return;
 
           setCvState(syncedState);
@@ -68,7 +69,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
     try {
       const response = await fetch('/api/cv-processor', {
         method: 'POST',
-        headers: { 'x-user-id': user.uid },
+        headers: await buildAuthHeaders(user),
         body: formData,
       });
 

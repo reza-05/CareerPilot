@@ -412,6 +412,7 @@ class CVVectorEngine:
         seniority_score = self._score_seniority_fit(job_description, cv_text, cv_depth_score)
 
         effective_experience_score = experience_score * max(skill_score, role_score)
+        seniority = self._detect_seniority(job_description)
 
         final_score = (
             semantic_score * 0.28
@@ -419,6 +420,13 @@ class CVVectorEngine:
             + role_score * 0.18
             + seniority_score * 0.12
             + cv_depth_score * 0.08
+            + effective_experience_score * 0.04
+        )
+        evidence_signal = (
+            skill_score * 0.38
+            + role_score * 0.28
+            + seniority_score * 0.18
+            + cv_depth_score * 0.12
             + effective_experience_score * 0.04
         )
 
@@ -433,13 +441,21 @@ class CVVectorEngine:
         if skill_score >= 0.72 and role_score >= 0.70 and cv_depth_score >= 0.68:
             final_score += 0.045
 
+        if cv_depth_score >= 0.62 and evidence_signal >= 0.58:
+            final_score = max(final_score, 0.54 + evidence_signal * 0.32)
+
+        if seniority == "intern" and cv_depth_score >= 0.55 and (skill_score >= 0.45 or role_score >= 0.48):
+            final_score = max(final_score, 0.64 + min(evidence_signal, 0.85) * 0.16)
+
+        if seniority in {"junior", "general"} and cv_depth_score >= 0.62 and (skill_score >= 0.55 or role_score >= 0.55):
+            final_score = max(final_score, 0.60 + min(evidence_signal, 0.90) * 0.18)
+
         if skill_score < 0.22 and role_score < 0.25 and semantic_score < 0.55:
             final_score = min(final_score, 0.42)
 
         if cv_depth_score < 0.28:
             final_score = min(final_score, 0.50)
 
-        seniority = self._detect_seniority(job_description)
         if seniority == "senior" and seniority_score < 0.58:
             final_score = min(final_score, 0.58)
         elif seniority == "mid" and seniority_score < 0.55:
@@ -449,6 +465,7 @@ class CVVectorEngine:
         return {
             "score": round(raw_score, 4),
             "percent": percent,
+            "detected_cv_skills": self.extract_skills(cv_text),
             "components": {
                 "semantic": round(semantic_score, 3),
                 "skills": round(skill_score, 3),

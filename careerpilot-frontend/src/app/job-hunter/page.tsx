@@ -6,6 +6,8 @@ import { Loader2, Sparkles, Briefcase, ArrowRight, FolderPlus, Check, FileEdit, 
 import { DM_Sans } from 'next/font/google';
 import AIChat, { type JobAssistantContext } from "@/components/AIChat";
 import { useAuth } from "@/components/AuthProvider";
+import { buildAuthHeaders } from "@/lib/authHeaders";
+import { loadUserCloudData, saveUserCloudData } from "@/lib/cloudStore";
 import { getJobHunterStateKey, hasProfileReady, syncCvUploadStateFromServer } from "@/lib/userSession";
 
 const dmSans = DM_Sans({
@@ -123,6 +125,7 @@ export default function JobHunter() {
   const [assistantPrompt, setAssistantPrompt] = useState({ text: "", version: 0 });
   const [sortMode, setSortMode] = useState<SortMode>(initialSavedState.sortMode || "best-match");
   const queryParamHandledRef = useRef(false);
+  const cloudHydratedRef = useRef(false);
   const sortedJobs = getSortedJobs(jobs, sortMode);
   
   // Clean string index signature matching tracking states safely
@@ -133,7 +136,7 @@ export default function JobHunter() {
       const updateProfileAccess = async () => {
         const syncedState = hasProfileReady(user?.uid)
           ? null
-          : await syncCvUploadStateFromServer(user?.uid);
+          : await syncCvUploadStateFromServer(user?.uid, user);
         const isReady = hasProfileReady(user?.uid) || Boolean(syncedState?.uploaded);
 
         setProfileReady(isReady);
@@ -144,7 +147,7 @@ export default function JobHunter() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [user?.uid]);
+  }, [user]);
 
   useEffect(() => {
     const userId = user?.uid;
@@ -153,7 +156,7 @@ export default function JobHunter() {
     const syncTrackedJobs = async () => {
       try {
         const response = await fetch("/api/tracker", {
-          headers: { "x-user-id": userId },
+          headers: await buildAuthHeaders(user),
         });
         if (!response.ok) return;
 
@@ -198,16 +201,32 @@ export default function JobHunter() {
       window.removeEventListener("focus", syncTrackedJobs);
       window.removeEventListener("pageshow", syncTrackedJobs);
     };
-  }, [jobs, user?.uid]);
+  }, [jobs, user]);
 
   useEffect(() => {
     if (!user?.uid) return;
 
-    window.localStorage.setItem(
-      getJobHunterStateKey(user.uid),
-      JSON.stringify({ jobs, searchQuery, statusMessage, trackingStates, sortMode }),
-    );
+    const nextState = { jobs, searchQuery, statusMessage, trackingStates, sortMode };
+    const hasMeaningfulState = jobs.length > 0 || Boolean(searchQuery.trim()) || Boolean(statusMessage.trim());
+    if (!cloudHydratedRef.current && !hasMeaningfulState) return;
+
+    window.localStorage.setItem(getJobHunterStateKey(user.uid), JSON.stringify(nextState));
+    void saveUserCloudData(user.uid, "jobHunterState", nextState);
   }, [jobs, searchQuery, sortMode, statusMessage, trackingStates, user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || jobs.length > 0 || searchQuery.trim()) return;
+
+    void loadUserCloudData<JobHunterSavedState>(user.uid, "jobHunterState").then((cloudState) => {
+      cloudHydratedRef.current = true;
+      if (!cloudState || jobs.length > 0 || searchQuery.trim()) return;
+      setJobs(Array.isArray(cloudState.jobs) ? cloudState.jobs : []);
+      setSearchQuery(cloudState.searchQuery || "");
+      setStatusMessage(cloudState.statusMessage || "");
+      setTrackingStates(cloudState.trackingStates || {});
+      setSortMode(cloudState.sortMode || "best-match");
+    });
+  }, [jobs.length, searchQuery, user?.uid]);
 
   const getSourceName = (url?: string) => {
     if (!url) return "Job Source";
@@ -261,7 +280,7 @@ export default function JobHunter() {
     try {
       const res = await fetch("/api/search-jobs", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify({ query: targetQuery }),
       });
       let data;
@@ -277,7 +296,7 @@ export default function JobHunter() {
       if (data.results) {
         setJobs(getSortedJobs(data.results, "best-match"));
         if (data.results.length === 0) {
-          setStatusMessage(data.error || "No jobs found. Try a broader search like 'Software Engineering internships in Dhaka'.");
+          setStatusMessage(data.error || "No jobs found. Try a broader search like 'Internships in Dhaka matching my profile'.");
         }
       } else {
         setJobs([]);
@@ -290,7 +309,7 @@ export default function JobHunter() {
     } finally {
       setLoading(false);
     }
-  }, [profileReady, userId]);
+  }, [profileReady, user]);
 
   useEffect(() => {
     if (queryParamHandledRef.current || !profileReady) return;
@@ -326,10 +345,7 @@ export default function JobHunter() {
     try {
       const response = await fetch("/api/tracker", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": user?.uid || "",
-        },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify({
           role: jobTitle,
           company: companyName,
@@ -359,15 +375,15 @@ export default function JobHunter() {
       {/* Soft Premium Top Mesh Layer Tinted to Coordinate Ecosystem */}
       <div className="absolute top-0 left-0 right-0 h-[420px] bg-gradient-to-b from-blue-50/30 via-transparent to-transparent pointer-events-none z-0" />
 
-      <div className="relative z-10 mx-auto max-w-4xl px-3 py-6 sm:px-4 sm:py-8 lg:py-10">
-        <header className="mb-7 text-center sm:mb-9">
+      <div className="relative z-10 mx-auto max-w-4xl px-3 py-4 sm:px-4 sm:py-6 lg:py-8">
+        <header className="mb-6 text-center sm:mb-7">
           
           {/* Solid Deep Blue Hero Heading (Absolutely No Gradients) */}
           <h1 className="text-[#1E3A8A] font-semibold text-2xl sm:text-4xl md:text-5xl lg:text-5xl tracking-tight text-center mb-4 leading-tight">
             Navigate Your Next Career Transition
           </h1>
           <p className="text-slate-500 font-normal text-xs sm:text-sm md:text-base text-center max-w-2xl mx-auto leading-relaxed px-1 sm:px-4">
-            Stop endless scrolling. Enter your ideal role, tech stack, or location, and let our intelligent engine surface tailored high-fit opportunities for you.
+            Stop endless scrolling. Enter your ideal role, field, skill, or location, and let our intelligent engine surface tailored high-fit opportunities for you.
           </p>
 
           {!profileReady && (
@@ -418,11 +434,11 @@ export default function JobHunter() {
           {/* Interactive Minimalist Blue Suggestion Pills */}
           <div className="flex flex-wrap justify-center items-center gap-2 mt-5 sm:mt-6 max-w-2xl mx-auto px-2">
             {[
-              { label: "Govt. job", query: "Government circular jobs in Bangladesh" },
-              { label: "Internship", query: "Software Engineering internships in Dhaka" },
-              { label: "Remote", query: "Remote developer jobs open to Bangladesh" },
-              { label: "Fresher", query: "Entry level software engineer jobs for freshers" },
-              { label: "In Dhaka", query: "Tech and developer jobs in Dhaka" }
+              { label: "Govt. job", query: "Government jobs in Bangladesh matching my profile" },
+              { label: "Internship", query: "Internships in Dhaka matching my profile" },
+              { label: "Remote", query: "Remote jobs open to Bangladesh matching my profile" },
+              { label: "Fresher", query: "Entry level roles for freshers matching my profile" },
+              { label: "In Dhaka", query: "Jobs in Dhaka matching my profile" }
             ].map((pill, index) => (
               <button
                 key={index}

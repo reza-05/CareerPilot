@@ -1,13 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // Points directly to your local Python backend service running ChromaDB
-const BACKEND_SERVICE_URL = "http://localhost:8000";
+const BACKEND_SERVICE_URL = process.env.BACKEND_SERVICE_URL || "http://127.0.0.1:8000";
+const BACKEND_TIMEOUT_MS = 12000;
+
+async function fetchWithTimeout(input: string, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), BACKEND_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function readBackendJson(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const rawText = await response.text();
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return { error: rawText || "Service returned an unreadable response." };
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
     const userId = req.headers.get("x-user-id") || req.nextUrl.searchParams.get("userId") || "anonymous_session_user";
-    const backendResponse = await fetch(`${BACKEND_SERVICE_URL}/api/cv-status?userId=${encodeURIComponent(userId)}`, {
+    const authorization = req.headers.get("authorization") || "";
+    const backendResponse = await fetchWithTimeout(`${BACKEND_SERVICE_URL}/api/cv-status?userId=${encodeURIComponent(userId)}`, {
       method: "GET",
+      headers: authorization ? { Authorization: authorization } : undefined,
       cache: "no-store",
     });
 
@@ -18,7 +49,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const backendData = await backendResponse.json();
+    const backendData = await readBackendJson(backendResponse);
     return NextResponse.json(backendData, { status: 200 });
   } catch (error: unknown) {
     console.error("CV status check failed:", error);
@@ -38,6 +69,7 @@ export async function POST(req: NextRequest) {
     const contentType = req.headers.get("content-type") || "";
     // Dynamically fallback if x-user-id isn't injected yet by auth middleware
     const userId = req.headers.get("x-user-id") || "anonymous_session_user";
+    const authorization = req.headers.get("authorization") || "";
 
     // ==========================================================
     // BRANCH 1: FILE_UPLOAD_STREAM (Handles CV Uploader Component)
@@ -63,8 +95,9 @@ export async function POST(req: NextRequest) {
       outwardFormData.append("chunk_size", "500");
       outwardFormData.append("chunk_overlap", "50");
 
-      const backendResponse = await fetch(`${BACKEND_SERVICE_URL}/api/cv-upload`, {
+      const backendResponse = await fetchWithTimeout(`${BACKEND_SERVICE_URL}/api/cv-upload`, {
         method: "POST",
+        headers: authorization ? { Authorization: authorization } : undefined,
         body: outwardFormData,
       });
 
@@ -75,7 +108,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const backendData = await backendResponse.json();
+      const backendData = await readBackendJson(backendResponse);
 
       // Return definitive operational flag and targeted dashboard redirect
       return NextResponse.json(
@@ -132,10 +165,11 @@ ${payload.certs || "Not specified"}
       `.trim();
 
       // Forward synthesized profile summary string to Python backend data pipelines
-      const backendResponse = await fetch(`${BACKEND_SERVICE_URL}/api/cv-manual`, {
+      const backendResponse = await fetchWithTimeout(`${BACKEND_SERVICE_URL}/api/cv-manual`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(authorization ? { Authorization: authorization } : {}),
         },
         body: JSON.stringify({
           userId,
@@ -153,7 +187,7 @@ ${payload.certs || "Not specified"}
         );
       }
 
-      const backendData = await backendResponse.json();
+      const backendData = await readBackendJson(backendResponse);
 
       return NextResponse.json(
         { success: true, redirectUrl: "/job-hunter", skills: backendData.skills || [] },
@@ -171,8 +205,7 @@ ${payload.certs || "Not specified"}
     return NextResponse.json(
       { 
         success: false,
-        error: "We could not save your profile right now. Please try again.", 
-        details: error instanceof Error ? error.message : String(error) 
+        error: "We could not save your profile right now. Please try again."
       }, 
       { status: 500 }
     );

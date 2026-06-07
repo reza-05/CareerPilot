@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Urbanist } from "next/font/google";
 import { Input } from "@/components/ui/input"; 
 import { CalendarCheck2, Check, Copy, DollarSign, ExternalLink, Loader2, MapPin, Percent, Send, Sparkles, Trash2, UserRound } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { buildAuthHeaders } from "@/lib/authHeaders";
+import { loadUserCloudData, saveUserCloudData } from "@/lib/cloudStore";
 import { getAssistantChatStateKey } from "@/lib/userSession";
 
 const urbanist = Urbanist({
@@ -79,6 +81,20 @@ export default function AIChat({
   const [loading, setLoading] = useState(false);
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const lastPromptVersion = useRef(-1);
+  const cloudHydratedRef = useRef(false);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    window.requestAnimationFrame(() => {
+      const scrollArea = chatScrollRef.current;
+      if (!scrollArea) return;
+
+      scrollArea.scrollTo({
+        top: scrollArea.scrollHeight,
+        behavior,
+      });
+    });
+  }, []);
 
   useEffect(() => {
     if (!jobContext) return;
@@ -100,11 +116,30 @@ export default function AIChat({
   useEffect(() => {
     if (!user?.uid) return;
 
-    window.localStorage.setItem(
-      getAssistantChatStateKey(user.uid),
-      JSON.stringify({ messages, input, activeJobContext }),
-    );
+    const nextState = { messages, input, activeJobContext };
+    const hasMeaningfulState = messages.length > 0 || Boolean(input.trim()) || Boolean(activeJobContext);
+    if (!cloudHydratedRef.current && !hasMeaningfulState) return;
+
+    window.localStorage.setItem(getAssistantChatStateKey(user.uid), JSON.stringify(nextState));
+    void saveUserCloudData(user.uid, "assistantChatState", nextState);
   }, [activeJobContext, input, messages, user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    void loadUserCloudData<AssistantChatState>(user.uid, "assistantChatState").then((cloudState) => {
+      cloudHydratedRef.current = true;
+      if (!cloudState || messages.length > 0 || input.trim()) return;
+      setMessages(Array.isArray(cloudState.messages) ? cloudState.messages : []);
+      setInput(cloudState.input || "");
+      setActiveJobContext(cloudState.activeJobContext || null);
+    });
+  }, [input, messages.length, user?.uid]);
+
+  useEffect(() => {
+    if (messages.length === 0 && !loading) return;
+    scrollChatToBottom(messages.length <= 1 ? "auto" : "smooth");
+  }, [loading, messages.length, scrollChatToBottom]);
 
   const contextLabel = activeJobContext
     ? `${activeJobContext.title}${activeJobContext.company ? ` at ${activeJobContext.company}` : ""}`
@@ -165,7 +200,7 @@ export default function AIChat({
       // 3. Routed through local Next.js rewrite configuration proxy rules safely
       const response = await fetch("/api/query-cv", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user?.uid || "" },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify({
           query: buildContextAwareQuery(trimmedInput),
           history: messages,
@@ -236,7 +271,10 @@ export default function AIChat({
         </div>
       </div>
 
-      <div className={`${compact ? "min-h-0 flex-1" : "h-[min(58vh,420px)] min-h-[340px] md:h-[420px] lg:h-[460px]"} overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5`}>
+      <div
+        ref={chatScrollRef}
+        className={`${compact ? "min-h-0 flex-1" : "h-[min(58vh,420px)] min-h-[340px] md:h-[420px] lg:h-[460px]"} overflow-y-auto bg-gradient-to-b from-white via-[#F8FBFF] to-[#EEF4FF]/60 p-4 sm:p-5`}
+      >
         {activeJobContext && (
           <section className="mb-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-sm shadow-blue-100/60">
             <div className="flex items-start justify-between gap-3">

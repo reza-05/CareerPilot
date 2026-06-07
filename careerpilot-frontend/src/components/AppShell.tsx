@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import ThemeToggle from "@/components/ThemeToggle";
-import { CAREER_PROFILE_UPDATED_EVENT, loadCareerProfile } from "@/lib/profileData";
+import { CAREER_PROFILE_UPDATED_EVENT, loadCareerProfile, loadCareerProfileFromCloud } from "@/lib/profileData";
+import { loadCvUploadStateFromCloud } from "@/lib/userSession";
 
 const navItems = [
   { href: "/cv-upload", label: "CV", icon: "/brand/cv.png" },
@@ -49,6 +50,8 @@ function ShellContent({ children }: { children: React.ReactNode }) {
     };
 
     refreshProfile();
+    void loadCareerProfileFromCloud(user.uid, user).then(setProfile);
+    void loadCvUploadStateFromCloud(user.uid);
     window.addEventListener(CAREER_PROFILE_UPDATED_EVENT, refreshProfile);
     window.addEventListener("storage", refreshProfile);
     return () => {
@@ -141,18 +144,18 @@ function ShellContent({ children }: { children: React.ReactNode }) {
 
 function AppFooter() {
   return (
-    <footer className="border-t border-blue-100 bg-white px-5 py-8 shadow-inner shadow-blue-50/70 dark:border-blue-400/15 dark:bg-slate-950">
-      <div className="mx-auto flex max-w-7xl flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+    <footer className="border-t border-blue-100 bg-white px-5 py-6 shadow-inner shadow-blue-50/70 dark:border-blue-400/15 dark:bg-slate-950">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Link href="/welcome" className="inline-flex items-center transition hover:opacity-90" aria-label="CareerPilot welcome">
-            <Image src="/brand/logo.png" alt="CareerPilot" width={210} height={80} className="h-10 w-auto" />
+            <Image src="/brand/logo.png" alt="CareerPilot" width={190} height={72} className="h-9 w-auto" />
           </Link>
-          <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-slate-500 dark:text-slate-400">
+          <p className="mt-2 max-w-xl text-xs font-semibold leading-5 text-slate-500 dark:text-slate-400">
             CareerPilot helps job seekers turn CV data into matched opportunities, guidance, and application progress.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 text-sm font-black text-[#1E3A8A] dark:text-blue-100 sm:items-end">
+        <div className="flex flex-col gap-2 text-xs font-black uppercase tracking-[0.16em] text-[#1E3A8A] dark:text-blue-100 sm:items-end">
           <div className="flex flex-wrap gap-4">
             <Link href="/about" className="transition hover:text-[#1D4ED8]">
               About
@@ -160,11 +163,8 @@ function AppFooter() {
             <Link href="/contact" className="transition hover:text-[#1D4ED8]">
               Contact
             </Link>
-            <Link href="/welcome" className="transition hover:text-[#1D4ED8]">
-              Home
-            </Link>
           </div>
-          <p className="text-xs font-bold text-slate-400">
+          <p className="text-[11px] font-bold normal-case tracking-normal text-slate-400">
             © {new Date().getFullYear()} CareerPilot. All rights reserved.
           </p>
         </div>

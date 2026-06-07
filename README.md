@@ -1,107 +1,96 @@
 # CareerPilot
 
-CareerPilot is an agentic career co-pilot for job seekers. It uses the user's CV as the source of truth, searches for relevant jobs, computes fit scores, drafts personalized application content, and tracks applications, goals, and deadlines.
+CareerPilot is an AI-powered career workspace that turns a user's CV into the source of truth for job discovery, fit analysis, assistant guidance, cover-letter drafting, application tracking, goals, deadlines, and progress insights.
 
-## Core Demo Flow
+The goal is simple: reduce blind job searching and help candidates make better application decisions with personalized, CV-grounded signals.
 
-1. Upload a CV or build a profile manually.
-2. CareerPilot extracts the profile and prepares it for retrieval.
-3. Search for jobs using natural language.
-4. Review job cards with fit scores and CV-grounded explanations.
-5. Ask the assistant for skill gaps, readiness, roadmaps, or cover letters.
-6. Track jobs into the application board.
-7. Manage deadlines, goals, and application progress from the tracker.
+## Core Value
 
-## Features
+- Upload or build a CV once, then reuse that profile across the whole app.
+- Search jobs in natural language and receive fit-ranked results.
+- Understand every match score through CV-aware explanations.
+- Ask the assistant about a selected role, skill gaps, application strategy, or next steps.
+- Track applications, deadlines, goals, and weekly progress from one workspace.
 
-- CV upload and manual profile builder
-- CV text extraction, chunking, embeddings, and vector search
-- Live job search using an external search tool
-- Programmatic fit score against the user's CV
-- CV-grounded assistant with session memory
-- Cover letter generation from selected jobs
-- Application kanban board: Applied, Interviewing, Offer, Rejected
-- Deadline calendar, goal setting, dashboard stats, and progress nudges
-- Profile-required gates for job search and assistant access
-- Responsive web UI for desktop, laptop, tablet, and phone screens
+## Main Features
+
+- Firebase authentication with Google sign-in and email/password accounts
+- Per-user profile, CV data, tracker data, and dashboard state
+- CV upload, saved CV metadata, and manual CV builder
+- CV parsing, chunking, embeddings, and local vector retrieval
+- Job Hunter with external search, fit scoring, sorting, and AI explanations
+- Selected-job AI chat with job context and saved CV context
+- Draft cover-letter action for selected jobs
+- Application tracker with Applied, Interviewing, Offer, and Rejected states
+- Deadline calendar, goal setting, progress analytics, and AI nudges
+- Dark/light mode, responsive SaaS UI, and profile photo support
+- Gemini-first AI generation with Groq fallback for resilience
+- Security hardening: input validation, file validation, generic errors, security headers, and optional Firebase ID-token verification on the backend
 
 ## Tech Stack
 
-- Frontend: Next.js, React, TypeScript, Tailwind CSS
-- Backend: FastAPI, Python, SQLite
-- AI: Gemini API with Groq backup for text generation
-- Search: Tavily API
-- RAG: CV parsing, text chunking, embeddings, ChromaDB
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| UI | Lucide icons, custom responsive components, next-themes |
+| Auth & user state | Firebase Authentication, Firestore |
+| Backend | FastAPI, Python, Pydantic, SQLAlchemy |
+| Storage | SQLite for tracker data, ChromaDB for CV vector retrieval, Firestore for user-scoped frontend profile state |
+| AI | Google Gemini primary, Groq fallback |
+| Search | Tavily API |
+| Parsing | pypdf, python-docx |
 
 ## Project Structure
 
 ```text
 CareerPilot/
   careerpilot-backend/
-    main.py
     app/
-      api/endpoints/
-      services/rag_service.py
+      api/endpoints/       FastAPI routes
+      core/                settings, auth, security helpers
+      services/            RAG, LLM, tracker, job logic
+    main.py
     requirements.txt
+    Dockerfile
+
   careerpilot-frontend/
-    src/app/
-    src/components/
+    src/app/               Next.js pages and API routes
+    src/components/        App shell, auth, chat, CV, job components
+    src/lib/               Auth headers, profile data, helpers
     package.json
+    Dockerfile
+
   docs/
     architecture.md
-    demo-script.md
-    evaluation-suite.md
-    system-design.md
+    STACK_REPORT.md
+    DEPENDENCIES.md
+    SECURITY.md
+    DEMO_SCRIPT_5_MIN.md
+    SUBMISSION_CHECKLIST.md
+
+  scripts/
+    package-submission.sh
 ```
 
-## Environment Variables
+## Local Setup
 
-Create `careerpilot-backend/.env`:
-
-```env
-GOOGLE_API_KEY=your_google_api_key
-GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.1-8b-instant
-TAVILY_API_KEY=your_tavily_api_key
-```
-
-Create `careerpilot-frontend/.env.local` if frontend-side AI routes are used:
-
-```env
-GOOGLE_API_KEY=your_google_api_key
-```
-
-## Run Locally
-
-### 1. Backend
+### Backend
 
 ```bash
 cd careerpilot-backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+cp .env.example .env
+python3 -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Backend health check:
-
-```text
-http://localhost:8000
-```
-
-Expected response:
-
-```json
-{ "message": "CareerPilot Backend is running" }
-```
-
-### 2. Frontend
-
-Open a second terminal:
+### Frontend
 
 ```bash
 cd careerpilot-frontend
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
@@ -111,36 +100,91 @@ Open:
 http://localhost:3000
 ```
 
-## Important Demo Notes
+## Environment Variables
 
-- Start from a fresh browser session for the clearest demo.
-- Upload a CV first or build a manual profile.
-- Job Hunter and Assistant intentionally require a prepared profile.
-- If Gemini reaches its rate limit, CareerPilot can continue with Groq when `GROQ_API_KEY` is configured.
-- Use specific job queries such as `Find me ML internships in Dhaka open this month`.
+Backend `.env`:
 
-## Documentation
+```env
+GOOGLE_API_KEY=your_gemini_key
+GROQ_API_KEY=your_groq_key
+GROQ_MODEL=llama-3.1-8b-instant
+TAVILY_API_KEY=your_tavily_key
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+REQUIRE_FIREBASE_AUTH=false
+FIREBASE_SERVICE_ACCOUNT_JSON=
+GEMINI_BUDGET_SECONDS=6
+GROQ_TIMEOUT_SECONDS=8
+```
 
-- [Architecture](docs/architecture.md)
-- [Demo Script](docs/demo-script.md)
-- [Evaluation Suite](docs/evaluation-suite.md)
-- [System Design Notes](docs/system-design.md)
+Frontend `.env.local`:
 
-## Build Verification
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+BACKEND_SERVICE_URL=http://127.0.0.1:8000
+```
 
-Frontend production build:
+For production, set `REQUIRE_FIREBASE_AUTH=true` and provide Firebase Admin credentials through `FIREBASE_SERVICE_ACCOUNT_JSON`.
+
+## Docker
+
+From the project root:
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:3000
+```
+
+Docker is best added after the local demo is stable, because it freezes the final run environment and makes setup easier for reviewers.
+
+## Firebase Firestore Rules
+
+Use authenticated, user-scoped rules:
+
+```js
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /careerpilot_users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+## Verification
 
 ```bash
 cd careerpilot-frontend
-npm run build
+npm run lint
+npm exec tsc -- --noEmit --incremental false
+
+cd ../careerpilot-backend
+python3 -m compileall app main.py
 ```
 
-## Submission Checklist
+## Submission Materials
 
-- [ ] Public GitHub repository
-- [ ] Backend and frontend run from source
-- [ ] Required environment variables documented
-- [ ] Architecture diagram included
-- [ ] 5-minute demo video recorded
-- [ ] Evaluation suite included
-- [ ] Optional deployment URL added if available
+The docs folder contains ready-to-upload files:
+
+- `docs/STACK_REPORT.md`
+- `docs/DEPENDENCIES.md`
+- `docs/architecture.md`
+- `docs/SECURITY.md`
+- `docs/DEMO_SCRIPT_5_MIN.md`
+- `docs/SUBMISSION_CHECKLIST.md`
+
+Run this to package them:
+
+```bash
+./scripts/package-submission.sh
+```
+
+Upload the generated zip to Google Drive and set sharing to "Anyone with the link can view."

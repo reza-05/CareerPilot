@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { DM_Sans } from 'next/font/google';
 import { ArrowRight, CheckCircle2, Clock3, CloudUpload, FileText, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import { buildAuthHeaders } from '@/lib/authHeaders';
 import { loadCvUploadState, markCvUploaded, syncCvUploadStateFromServer } from '@/lib/userSession';
 import { loadCareerProfile, normalizeSkillList, saveCareerProfile } from '@/lib/profileData';
 
@@ -40,7 +41,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
     const timer = window.setTimeout(() => {
       setCvState(loadCvUploadState(user?.uid));
       if (user?.uid) {
-        void syncCvUploadStateFromServer(user.uid).then((syncedState) => {
+        void syncCvUploadStateFromServer(user.uid, user).then((syncedState) => {
           if (!syncedState.uploaded) return;
 
           setCvState(syncedState);
@@ -84,9 +85,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
       // পয়েন্ট করছি আমাদের সুরক্ষিত নেক্সটজেএস প্রক্সি এপিআই রুটে
       const response = await fetch('/api/cv-processor', {
         method: 'POST',
-        headers: {
-          'x-user-id': user.uid,
-        },
+        headers: await buildAuthHeaders(user),
         body: formData,
       });
 
@@ -157,7 +156,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
   }
 
   return (
-    <div className={`min-h-[calc(100vh-4rem)] w-full bg-[#f8f9fa] px-4 py-6 dark:bg-slate-950 sm:px-6 sm:py-8 md:py-10 ${dmSans.className}`}>
+    <div className={`min-h-[calc(100vh-4rem)] w-full bg-[#f8f9fa] px-4 py-4 dark:bg-slate-950 sm:px-6 sm:py-6 md:py-8 ${dmSans.className}`}>
       <div className="mx-auto max-w-2xl">
         
         {/* এরর নোটিফিকেশন ব্যানার */}
@@ -174,7 +173,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
               CareerPilot CV Workspace
             </p>
             <h2 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
-              {hasSavedResume ? "Your resume is ready" : "Upload your resume"}
+              {hasSavedResume ? "Your Resume Is Ready" : "Upload Your Resume"}
             </h2>
             <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-slate-500">
               {hasSavedResume
@@ -231,7 +230,7 @@ export default function CVUploader({ onUploadSuccess }: CVUploaderProps) {
               {file
                 ? file.name
                 : hasSavedResume
-                  ? "Upload a new PDF to replace your saved CV"
+                  ? "Upload a New PDF to Replace Your Saved CV"
                   : "Drop your PDF here, or click to browse"}
             </p>
             <p className="text-center text-sm font-medium text-slate-500">

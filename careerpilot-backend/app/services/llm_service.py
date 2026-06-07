@@ -20,6 +20,7 @@ class LLMService:
         self.gemini_timeout_ms = int(os.getenv("GEMINI_TIMEOUT_MS", "2500"))
         self.gemini_max_attempts = int(os.getenv("GEMINI_MAX_ATTEMPTS", "3"))
         self.gemini_cooldown_seconds = int(os.getenv("GEMINI_COOLDOWN_SECONDS", "300"))
+        self.gemini_budget_seconds = float(os.getenv("GEMINI_BUDGET_SECONDS", "6"))
         self.gemini_clients = [
             genai.Client(
                 api_key=api_key,
@@ -30,7 +31,7 @@ class LLMService:
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         self.groq_api_key = os.getenv("GROQ_API_KEY")
         self.groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-        self.groq_timeout_seconds = int(os.getenv("GROQ_TIMEOUT_SECONDS", "24"))
+        self.groq_timeout_seconds = int(os.getenv("GROQ_TIMEOUT_SECONDS", "8"))
 
     def _load_gemini_keys(self) -> list[str]:
         raw_keys = [os.getenv("GOOGLE_API_KEYS", ""), os.getenv("GOOGLE_API_KEY", "")]
@@ -56,6 +57,16 @@ class LLMService:
         if should_cool_down:
             self.__class__._gemini_disabled_until = time.monotonic() + self.gemini_cooldown_seconds
 
+    def _is_quota_or_rate_limit(self, reason: Union[Exception, str]) -> bool:
+        reason_text = str(reason).lower()
+        return any(marker in reason_text for marker in ["429", "quota", "rate", "exhausted", "resource_exhausted"])
+
+    def _compact_provider_error(self, provider: str, error: Union[Exception, str]) -> str:
+        text = str(error).replace("\n", " ").strip()
+        if len(text) > 220:
+            text = text[:217] + "..."
+        return f"{provider}: {text}"
+
     def _generate_with_gemini(
         self,
         prompt: str,
@@ -67,6 +78,7 @@ class LLMService:
 
         errors: list[str] = []
         attempt_count = max(1, self.gemini_max_attempts)
+        started_at = time.monotonic()
 
         for attempt in range(attempt_count):
             client = self.gemini_clients[attempt % len(self.gemini_clients)]
@@ -86,6 +98,12 @@ class LLMService:
                 errors.append(f"Gemini attempt {attempt + 1} returned an empty response.")
             except Exception as exc:
                 errors.append(f"Gemini attempt {attempt + 1} failed: {exc}")
+                if self._is_quota_or_rate_limit(exc) and attempt + 1 >= min(3, attempt_count):
+                    break
+
+            if time.monotonic() - started_at >= self.gemini_budget_seconds:
+                errors.append("Gemini attempt budget exceeded.")
+                break
 
         self._cool_down_gemini(" | ".join(errors))
         raise LLMUnavailableError(" | ".join(errors) or "Gemini failed.")
@@ -97,7 +115,7 @@ class LLMService:
             try:
                 return self._generate_with_gemini(prompt, temperature=temperature)
             except Exception as exc:
-                errors.append(f"Gemini failed: {exc}")
+                errors.append(self._compact_provider_error("Gemini failed", exc))
         elif self.gemini_clients:
             errors.append("Gemini is cooling down after a recent failure.")
 
@@ -105,7 +123,7 @@ class LLMService:
             try:
                 return self._generate_with_groq(prompt, temperature=temperature).strip()
             except Exception as exc:
-                errors.append(f"Groq failed: {exc}")
+                errors.append(self._compact_provider_error("Groq failed", exc))
 
         raise LLMUnavailableError(" | ".join(errors) or "No LLM provider is configured.")
 
@@ -121,7 +139,7 @@ class LLMService:
                 )
                 return self._parse_json(text)
             except Exception as exc:
-                errors.append(f"Gemini JSON failed: {exc}")
+                errors.append(self._compact_provider_error("Gemini JSON failed", exc))
         elif self.gemini_clients:
             errors.append("Gemini is cooling down after a recent failure.")
 
@@ -134,7 +152,7 @@ class LLMService:
                 )
                 return self._parse_json(text)
             except Exception as exc:
-                errors.append(f"Groq JSON failed: {exc}")
+                errors.append(self._compact_provider_error("Groq JSON failed", exc))
 
         raise LLMUnavailableError(" | ".join(errors) or "No LLM provider is configured.")
 
@@ -176,4 +194,9 @@ class LLMService:
         cleaned = text.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.replace("```json", "").replace("```", "").strip()
+        if not cleaned.startswith("{"):
+            start = cleaned.find("{")
+            end = cleaned.rfind("}")
+            if start >= 0 and end > start:
+                cleaned = cleaned[start:end + 1]
         return json.loads(cleaned)

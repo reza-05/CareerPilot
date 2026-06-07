@@ -20,7 +20,7 @@ function AssistantContent() {
       const updateProfileAccess = async () => {
         const syncedState = hasProfileReady(user?.uid)
           ? null
-          : await syncCvUploadStateFromServer(user?.uid);
+          : await syncCvUploadStateFromServer(user?.uid, user);
         setProfileReady(hasProfileReady(user?.uid) || Boolean(syncedState?.uploaded));
       };
 
@@ -28,7 +28,7 @@ function AssistantContent() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [user?.uid]);
+  }, [user]);
 
   useEffect(() => {
     if (prompt) {

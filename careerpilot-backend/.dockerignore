@@ -1,0 +1,9 @@
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.env
+careerpilot.db
+chroma_db
+storage/temp_cvs
+.DS_Store

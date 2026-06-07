@@ -1,3 +1,7 @@
+import { loadUserCloudData, saveUserCloudData } from "@/lib/cloudStore";
+import { buildAuthHeaders } from "@/lib/authHeaders";
+import type { User } from "firebase/auth";
+
 export function getProfileReadyKey(userId: string) {
   return `careerpilot_profile_ready_${userId}`;
 }
@@ -54,33 +58,56 @@ export function markCvUploaded(userId: string, fileName?: string, skills: string
 
   resetCvDependentWorkspace(userId);
   markProfileReady(userId);
+  const nextState = {
+    uploaded: true,
+    fileName: fileName || "Saved resume",
+    skills,
+    updatedAt: new Date().toISOString(),
+  };
   window.localStorage.setItem(
     getCvUploadStateKey(userId),
-    JSON.stringify({
-      uploaded: true,
-      fileName: fileName || "Saved resume",
-      skills,
-      updatedAt: new Date().toISOString(),
-    }),
+    JSON.stringify(nextState),
   );
+  void saveUserCloudData(userId, "cvUploadState", nextState);
 }
 
 export function restoreCvUploadState(userId: string, fileName?: string, skills: string[] = [], updatedAt?: string) {
   if (typeof window === "undefined") return;
 
   markProfileReady(userId);
+  const nextState = {
+    uploaded: true,
+    fileName: fileName || "Saved CV",
+    skills,
+    updatedAt: updatedAt || new Date().toISOString(),
+  };
   window.localStorage.setItem(
     getCvUploadStateKey(userId),
-    JSON.stringify({
-      uploaded: true,
-      fileName: fileName || "Saved CV",
-      skills,
-      updatedAt: updatedAt || new Date().toISOString(),
-    }),
+    JSON.stringify(nextState),
   );
+  void saveUserCloudData(userId, "cvUploadState", nextState);
 }
 
-export async function syncCvUploadStateFromServer(userId?: string | null): Promise<CvUploadState> {
+export async function loadCvUploadStateFromCloud(userId?: string | null): Promise<CvUploadState> {
+  const localState = loadCvUploadState(userId);
+  if (!userId || typeof window === "undefined") return localState;
+
+  const cloudState = await loadUserCloudData<Partial<CvUploadState>>(userId, "cvUploadState");
+  if (!cloudState?.uploaded) return localState;
+
+  const mergedState = {
+    ...emptyCvUploadState,
+    ...cloudState,
+    uploaded: true,
+    skills: Array.isArray(cloudState.skills) ? cloudState.skills : [],
+  };
+
+  markProfileReady(userId);
+  window.localStorage.setItem(getCvUploadStateKey(userId), JSON.stringify(mergedState));
+  return mergedState;
+}
+
+export async function syncCvUploadStateFromServer(userId?: string | null, user?: User | null): Promise<CvUploadState> {
   if (!userId || typeof window === "undefined") {
     return emptyCvUploadState;
   }
@@ -88,9 +115,7 @@ export async function syncCvUploadStateFromServer(userId?: string | null): Promi
   try {
     const response = await fetch("/api/cv-processor", {
       method: "GET",
-      headers: {
-        "x-user-id": userId,
-      },
+      headers: await buildAuthHeaders(user ?? ({ uid: userId } as User)),
       cache: "no-store",
     });
 
@@ -106,7 +131,9 @@ export async function syncCvUploadStateFromServer(userId?: string | null): Promi
     // Keep the existing browser state if the local app service is temporarily unreachable.
   }
 
-  return loadCvUploadState(userId);
+  const localState = loadCvUploadState(userId);
+  if (localState.uploaded) return localState;
+  return loadCvUploadStateFromCloud(userId);
 }
 
 export function loadCvUploadState(userId?: string | null): CvUploadState {

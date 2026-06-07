@@ -6,14 +6,13 @@ const GEMINI_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const jobDescription = body.jobDescription || "";
-    const candidateData = body.candidateData || body.userId || "Software Developer";
+    const jobDescription = String(body.jobDescription || "").slice(0, 6000);
+    const candidateData = body.candidateData || body.userId || "Candidate profile";
 
     if (!GEMINI_KEY) {
       return NextResponse.json({ 
-        error: "Missing API Key", 
-        details: "Please make sure GOOGLE_API_KEY is configured." 
-      }, { status: 400 });
+        error: "AI analysis is temporarily unavailable."
+      }, { status: 503 });
     }
 
     const genAI = new GoogleGenerativeAI(GEMINI_KEY);
@@ -22,7 +21,7 @@ export async function POST(req: Request) {
     
     const prompt = `
       You are an expert ATS and Resume Analyzer. 
-      Analyze this candidate data: ${typeof candidateData === 'object' ? JSON.stringify(candidateData) : candidateData}
+      Analyze this candidate data: ${typeof candidateData === 'object' ? JSON.stringify(candidateData).slice(0, 6000) : String(candidateData).slice(0, 6000)}
       Against this job description: ${jobDescription}
       
       Return ONLY a raw, valid JSON object matching this schema perfectly. No markdown, no triple backticks:
@@ -49,8 +48,7 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error("Gemini Live Error:", error);
     return NextResponse.json({ 
-      error: "Live AI Generation Failed", 
-      details: error instanceof Error ? error.message : String(error) 
+      error: "AI analysis is temporarily unavailable. Please try again in a moment."
     }, { status: 500 });
   }
 }

@@ -67,15 +67,15 @@ const steps = [
 
 const stats = [
   { label: "Workspace modules", value: 4, suffix: "" },
-  { label: "Secure access paths", value: 3, suffix: "" },
+  { label: "Protected data layers", value: 3, suffix: "" },
   { label: "Activity window", value: 7, suffix: "d" },
   { label: "Per-user workspace", value: 100, suffix: "%" },
 ];
 
 const dashboardJobs = [
-  { title: "Frontend Developer", company: "Remote", score: 92 },
-  { title: "Product Intern", company: "Dhaka", score: 84 },
-  { title: "Junior Software Engineer", company: "Hybrid", score: 78 },
+  { title: "Marketing Coordinator", company: "Remote", score: 92 },
+  { title: "Business Analyst Intern", company: "Dhaka", score: 84 },
+  { title: "Customer Success Associate", company: "Hybrid", score: 78 },
 ];
 
 export default function WelcomePage() {
@@ -112,11 +112,11 @@ export default function WelcomePage() {
         onSignup={() => goToAuth("signup")}
       />
 
-      <section className="relative overflow-hidden bg-[linear-gradient(180deg,#F8FBFF_0%,#FFFFFF_58%,#F8FAFC_100%)] px-5 pb-10 pt-[5.5rem] dark:bg-[linear-gradient(180deg,#0F172A_0%,#111827_58%,#020617_100%)] sm:px-8 sm:pb-12 sm:pt-24 lg:px-14 lg:pb-14 lg:pt-[6.5rem]">
+      <section className="relative overflow-hidden bg-[linear-gradient(180deg,#F8FBFF_0%,#FFFFFF_58%,#F8FAFC_100%)] px-5 pb-10 pt-[5.5rem] dark:bg-[linear-gradient(180deg,#0F172A_0%,#111827_58%,#020617_100%)] sm:px-8 sm:pb-12 sm:pt-24 lg:px-14 lg:pb-14 lg:pt-[6.2rem]">
         <div className="absolute left-0 top-20 h-72 w-72 rounded-full bg-blue-100/70 blur-3xl" />
         <div className="absolute right-[-8rem] top-52 h-96 w-96 rounded-full bg-[#DBEAFE]/80 blur-3xl" />
 
-        <div className="pointer-events-none absolute right-5 top-[5.25rem] z-20 hidden items-center gap-2 rounded-full border border-blue-200 bg-white/85 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#1E3A8A] shadow-sm shadow-blue-100/80 backdrop-blur dark:border-blue-400/20 dark:bg-slate-900/80 dark:text-blue-100 sm:flex lg:right-14">
+        <div className="pointer-events-none absolute right-5 top-[5rem] z-20 hidden items-center gap-2 rounded-full border border-blue-200 bg-white/85 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#1E3A8A] shadow-sm shadow-blue-100/80 backdrop-blur dark:border-blue-400/20 dark:bg-slate-900/80 dark:text-blue-100 sm:flex lg:right-14">
           <Sparkles className="h-4 w-4" />
           AI-Powered Career Workspace
         </div>
@@ -212,6 +212,15 @@ function WelcomeNavbar({
             className="h-10 w-auto sm:h-12 lg:h-14"
           />
         </button>
+
+        <div className="ml-auto hidden items-center gap-6 text-sm font-black text-slate-600 dark:text-slate-300 md:flex">
+          <Link href="/about" className="transition hover:text-[#1E3A8A] dark:hover:text-blue-100">
+            About
+          </Link>
+          <Link href="/contact" className="transition hover:text-[#1E3A8A] dark:hover:text-blue-100">
+            Contact
+          </Link>
+        </div>
 
         <div className="flex items-center gap-2">
           {isSignedIn ? (
@@ -358,8 +367,8 @@ function LiveDashboardSection() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <MiniStat icon={<BriefcaseBusiness className="h-5 w-5" />} label="Applications" value="6" />
-              <MiniStat icon={<BarChart3 className="h-5 w-5" />} label="Profile skills" value="18" />
+              <MiniStat icon={<BriefcaseBusiness className="h-5 w-5" />} label="Applications" value="6+" />
+              <MiniStat icon={<BarChart3 className="h-5 w-5" />} label="Profile skills" value="18+" />
               <MiniStat icon={<LineChart className="h-5 w-5" />} label="Roadmap" value="72%" />
             </div>
           </div>
@@ -542,13 +551,13 @@ function CtaSection({ isSignedIn, onAction }: { isSignedIn: boolean; onAction: (
 
 function Footer({ onLogo }: { onLogo: () => void }) {
   return (
-    <footer className="border-t border-blue-100 bg-[#F8FAFC] px-5 py-8 sm:px-8 lg:px-14">
+    <footer className="border-t border-blue-100 bg-[#F8FAFC] px-5 py-7 sm:px-8 lg:px-14">
       <div className="mx-auto flex max-w-[1400px] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <button type="button" onClick={onLogo} className="flex items-center transition hover:opacity-90" aria-label="CareerPilot welcome">
           <Image src="/brand/logo.png" alt="CareerPilot" width={220} height={80} className="h-10 w-auto" />
         </button>
         <div className="flex flex-col gap-2 sm:items-end">
-          <div className="flex flex-wrap gap-4 text-sm font-black text-[#1E3A8A]">
+          <div className="flex flex-wrap gap-4 text-xs font-black uppercase tracking-[0.16em] text-[#1E3A8A]">
             <Link href="/about" className="transition hover:text-[#1D4ED8]">About</Link>
             <Link href="/contact" className="transition hover:text-[#1D4ED8]">Contact</Link>
           </div>

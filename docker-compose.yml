@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./careerpilot-backend
+    container_name: careerpilot-backend
+    env_file:
+      - ./careerpilot-backend/.env
+    environment:
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      REQUIRE_FIREBASE_AUTH: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_storage:/app/storage
+      - backend_chroma:/app/chroma_db
+
+  frontend:
+    build:
+      context: ./careerpilot-frontend
+    container_name: careerpilot-frontend
+    env_file:
+      - ./careerpilot-frontend/.env.local
+    environment:
+      BACKEND_SERVICE_URL: http://backend:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  backend_storage:
+  backend_chroma:

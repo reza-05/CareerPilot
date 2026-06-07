@@ -1,3 +1,5 @@
+import { loadUserCloudData, saveUserCloudData } from "@/lib/cloudStore";
+
 export type CareerProfile = {
   photoDataUrl: string;
   firstName: string;
@@ -118,6 +120,7 @@ export function loadCareerProfile(
 export function saveCareerProfile(userId: string, profile: CareerProfile) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(getCareerProfileKey(userId), JSON.stringify(profile));
+  void saveUserCloudData(userId, "careerProfile", profile);
   window.setTimeout(() => {
     window.dispatchEvent(
       new CustomEvent(CAREER_PROFILE_UPDATED_EVENT, {
@@ -125,6 +128,31 @@ export function saveCareerProfile(userId: string, profile: CareerProfile) {
       }),
     );
   }, 0);
+}
+
+export async function loadCareerProfileFromCloud(
+  userId?: string | null,
+  fallbackUser?: { displayName?: string | null; email?: string | null } | null,
+): Promise<CareerProfile> {
+  const localProfile = loadCareerProfile(userId, fallbackUser);
+  if (!userId || typeof window === "undefined") return localProfile;
+
+  const cloudProfile = await loadUserCloudData<Partial<CareerProfile>>(userId, "careerProfile");
+  if (!cloudProfile) return localProfile;
+
+  const mergedProfile = {
+    ...localProfile,
+    ...cloudProfile,
+  };
+
+  window.localStorage.setItem(getCareerProfileKey(userId), JSON.stringify(mergedProfile));
+  window.dispatchEvent(
+    new CustomEvent(CAREER_PROFILE_UPDATED_EVENT, {
+      detail: { userId },
+    }),
+  );
+
+  return mergedProfile;
 }
 
 export function normalizeSkillList(skills: unknown): string[] {

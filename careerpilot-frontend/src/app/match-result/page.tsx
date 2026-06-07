@@ -36,7 +36,7 @@ export default function MatchResultPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] px-4 py-8 sm:py-12 lg:py-16 max-w-4xl mx-auto">
+    <div className="min-h-screen bg-[#f8f9fa] px-4 py-5 sm:py-7 lg:py-9 max-w-4xl mx-auto">
       {/* Back Button with dark contrast */}
       <button 
         onClick={() => router.push("/cv-builder")} 

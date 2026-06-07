@@ -13,3 +13,4 @@ google-genai
 tavily-python
 numpy
 requests
+firebase-admin

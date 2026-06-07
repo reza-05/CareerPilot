@@ -6,6 +6,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import ProfileAvatar from "@/components/ProfileAvatar";
+import { buildAuthHeaders } from "@/lib/authHeaders";
 import { markCvUploaded } from "@/lib/userSession";
 import { loadCareerProfile, mergeProfileSkills, normalizeSkillList, saveCareerProfile } from "@/lib/profileData";
 
@@ -100,7 +101,7 @@ export default function CVBuilderPage() {
       saveCareerProfile(user.uid, formData);
       const response = await fetch("/api/cv-processor", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": user.uid },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify(payload),
       });
       const data = await response.json();

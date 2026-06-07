@@ -1,5 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from tavily import TavilyClient
 from sqlalchemy import Column, Integer, String, create_engine, inspect
@@ -7,9 +7,18 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 from typing import Optional
+from app.core.auth import get_request_user_id
+from app.core.security import (
+    generic_server_error,
+    safe_public_text,
+    sanitize_filename,
+    sanitize_user_id,
+    validate_text,
+    validate_upload_file,
+)
 from app.services.llm_service import LLMService, LLMUnavailableError
 from app.services.rag_service import CVVectorEngine
-import shutil, os, re
+import os, re
 
 class Settings(BaseSettings):
     google_api_key: str
@@ -25,13 +34,14 @@ llm = LLMService()
 UPLOAD_DIR = "./storage/temp_cvs"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-def sanitize_user_id(user_id: str) -> str:
-    safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", user_id or "anonymous_user")
-    return safe_id[:120] or "anonymous_user"
-
 class JobRequest(BaseModel):
-    query: str
-    history: list = []
+    query: str = Field(min_length=1, max_length=2000)
+    history: list = Field(default_factory=list)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return validate_text(value, "Query", max_length=2000)
 
 STOPWORDS = {
     "the", "and", "for", "with", "from", "that", "this", "you", "your", "are",
@@ -47,13 +57,22 @@ def extract_keywords(text: str, limit: int = 8) -> list[str]:
             seen.append(token)
     return seen[:limit]
 
-def build_local_match_reason(job_description: str, cv_context: str, fit_percent: int) -> str:
+def build_local_match_reason(job_description: str, cv_context: str, fit_percent: int, fit_data: Optional[dict] = None) -> str:
     if not cv_context or cv_context == "No CV data available.":
-        return f"This role has a {fit_percent}% programmatic match, but the CV context is limited; upload a richer CV for stronger reasoning."
+        return f"This role has a {fit_percent}% profile match, but the CV context is limited; upload a richer CV for stronger reasoning."
 
     job_keywords = set(extract_keywords(job_description, limit=40))
     cv_keywords = extract_keywords(cv_context, limit=40)
     overlaps = [word for word in cv_keywords if word in job_keywords][:6]
+    components = (fit_data or {}).get("components", {})
+    detected_skills = (fit_data or {}).get("detected_cv_skills", [])[:5]
+
+    if detected_skills and components.get("skills", 0) >= 0.55:
+        skills_text = ", ".join(detected_skills[:4])
+        return (
+            f"This role scores {fit_percent}% because your CV shows relevant strengths such as {skills_text}, "
+            f"with solid alignment to the role requirements."
+        )
 
     if overlaps:
         return (
@@ -126,33 +145,28 @@ def normalize_deadline_date(deadline_text: str) -> Optional[str]:
     return None
 
 @router.post("/api/upload-cv")
-async def upload_cv(file: UploadFile = File(...), x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+async def upload_cv(file: UploadFile = File(...), user_id: str = Depends(get_request_user_id)):
     allowed_extensions = {".pdf", ".docx", ".txt"}
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
-
-    safe_filename = f"{user_id}_{os.path.basename(file.filename)}"
+    safe_original_name, content = await validate_upload_file(file, allowed_extensions)
+    safe_filename = f"{user_id}_{safe_original_name}"
     save_path = os.path.join(UPLOAD_DIR, safe_filename)
     try:
         with open(save_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content)
         chunk_count = vector_engine.ingest_cv(save_path, safe_filename, user_id=user_id)
         return {
             "status": "success",
-            "filename": safe_filename,
+            "filename": safe_public_text(safe_filename, 180),
             "chunks_indexed": chunk_count,
-            "message": f"CV indexed into {chunk_count} chunks."
+            "message": "Your CV is ready."
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        raise generic_server_error()
 
 @router.post("/api/search-jobs")
-async def search_jobs(request: JobRequest, x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+async def search_jobs(request: JobRequest, user_id: str = Depends(get_request_user_id)):
     try:
-        results = tavily.search(query=request.query, search_depth="advanced", max_results=12)
+        results = tavily.search(query=request.query, search_depth="advanced", max_results=18)
         formatted = []
 
         for item in results.get("results", []):
@@ -167,40 +181,27 @@ async def search_jobs(request: JobRequest, x_user_id: str = Header("anonymous_us
             relevant_cv_chunks = vector_engine.retrieve_cv_context(scoring_text, num_results=3, user_id=user_id)
             cv_context_str = "\n".join(relevant_cv_chunks) if relevant_cv_chunks else "No CV data available."
 
-            explanation_prompt = (
-                f"Job Title: {job_title}\n\n"
-                f"Job Description:\n{job_description[:800]}\n\n"
-                f"Relevant CV sections:\n{cv_context_str}\n\n"
-                f"Fit score: {fit_percent}%.\n\n"
-                f"Write ONE sentence explaining why this fit score makes sense, referencing the candidate's actual CV experience."
-            )
+            fallback_meta = extract_job_metadata(job_description, request.query)
+            match_reason = build_local_match_reason(job_description, cv_context_str, fit_percent, fit_data)
+            salary_range = fallback_meta["salaryRange"]
+            deadline = fallback_meta["applicationDeadline"]
+            location = fallback_meta["location"]
 
-            salary_location_prompt = (
-                f"From this job posting extract:\n{job_description[:1000]}\n\n"
-                f"Return JSON with keys: salaryRange, applicationDeadline, location. "
-                f"Use 'Not Specified' / 'Open until filled' as fallbacks. Return ONLY valid JSON."
-            )
+            if len(formatted) < 5 and fit_percent >= 25:
+                explanation_prompt = (
+                    f"Job Title: {job_title}\n\n"
+                    f"Job Description:\n{job_description[:700]}\n\n"
+                    f"Relevant CV sections:\n{cv_context_str[:900]}\n\n"
+                    f"Fit score: {fit_percent}%.\n"
+                    f"Score signals: {fit_data.get('components', {})}.\n\n"
+                    f"Write ONE concise sentence explaining why this fit score makes sense. "
+                    f"Reference only evidence visible in the CV context. Avoid backend or scoring terms."
+                )
 
-            match_reason = "Alignment based on CV profile."
-            salary_range = "Not Specified"
-            deadline = "Open until filled"
-            location = "Not Specified"
-
-            try:
-                match_reason = llm.generate_text(explanation_prompt, temperature=0.25)
-
-                meta = llm.generate_json(salary_location_prompt, temperature=0.1)
-                salary_range = meta.get("salaryRange", "Not Specified")
-                deadline = meta.get("applicationDeadline", "Open until filled")
-                location = meta.get("location", "Not Specified")
-
-            except LLMUnavailableError as ai_err:
-                fallback_meta = extract_job_metadata(job_description, request.query)
-                match_reason = build_local_match_reason(job_description, cv_context_str, fit_percent)
-                salary_range = fallback_meta["salaryRange"]
-                deadline = fallback_meta["applicationDeadline"]
-                location = fallback_meta["location"]
-                print(f"All LLM providers failed during job enrichment: {ai_err}")
+                try:
+                    match_reason = llm.generate_text(explanation_prompt, temperature=0.2)
+                except LLMUnavailableError as ai_err:
+                    print(f"AI explanation skipped for job enrichment: {ai_err}")
 
             item["matchScore"] = round(fit_score, 4)
             item["matchPercent"] = fit_percent
@@ -211,6 +212,7 @@ async def search_jobs(request: JobRequest, x_user_id: str = Header("anonymous_us
             item["location"] = location
             formatted.append(item)
 
+        formatted.sort(key=lambda job: job.get("matchPercent", 0), reverse=True)
         return {"results": formatted}
     except Exception as e:
         print(f"Job search failed: {e}")
@@ -220,8 +222,7 @@ async def search_jobs(request: JobRequest, x_user_id: str = Header("anonymous_us
         }
 
 @router.post("/api/query-cv")
-async def query_cv(request: JobRequest, x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+async def query_cv(request: JobRequest, user_id: str = Depends(get_request_user_id)):
     try:
         relevant_chunks = vector_engine.retrieve_cv_context(request.query, num_results=5, user_id=user_id)
         cv_context = "\n\n".join(relevant_chunks) if relevant_chunks else "No CV uploaded yet."
@@ -282,16 +283,45 @@ def ensure_tracker_columns():
 ensure_tracker_columns()
 
 class TrackerCreate(BaseModel):
-    role: str
-    company: str
-    application_deadline: Optional[str] = None
-    deadline_date: Optional[str] = None
-    source_url: Optional[str] = None
+    role: str = Field(min_length=1, max_length=180)
+    company: str = Field(min_length=1, max_length=180)
+    application_deadline: Optional[str] = Field(default=None, max_length=120)
+    deadline_date: Optional[str] = Field(default=None, max_length=20)
+    source_url: Optional[str] = Field(default=None, max_length=1000)
+
+    @field_validator("role", "company")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        return validate_text(value, "Job field", max_length=180)
+
+    @field_validator("application_deadline", "deadline_date", "source_url")
+    @classmethod
+    def validate_optional_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return safe_public_text(value, 1000)
 
 class StatusUpdate(BaseModel):
-    status: Optional[str] = None
-    application_deadline: Optional[str] = None
-    deadline_date: Optional[str] = None
+    status: Optional[str] = Field(default=None, max_length=40)
+    application_deadline: Optional[str] = Field(default=None, max_length=120)
+    deadline_date: Optional[str] = Field(default=None, max_length=20)
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        allowed = {"Applied", "Interviewing", "Offer", "Rejected"}
+        if value not in allowed:
+            raise ValueError("Unsupported tracker status.")
+        return value
+
+    @field_validator("application_deadline", "deadline_date")
+    @classmethod
+    def validate_deadline_text(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return safe_public_text(value, 120)
 
 def get_db():
     db = SessionLocal()
@@ -301,12 +331,11 @@ def get_db():
         db.close()
 
 @router.post("/api/tracker")
-def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db), user_id: str = Depends(get_request_user_id)):
     db_entry = JobTracker(
         user_id=user_id,
-        role=job.role,
-        company=job.company,
+        role=safe_public_text(job.role, 180),
+        company=safe_public_text(job.company, 180),
         status="Applied",
         application_deadline=job.application_deadline,
         deadline_date=job.deadline_date or normalize_deadline_date(job.application_deadline or ""),
@@ -318,13 +347,11 @@ def add_tracked_job(job: TrackerCreate, db: Session = Depends(get_db), x_user_id
     return db_entry
 
 @router.get("/api/tracker")
-def list_tracked_jobs(db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+def list_tracked_jobs(db: Session = Depends(get_db), user_id: str = Depends(get_request_user_id)):
     return db.query(JobTracker).filter(JobTracker.user_id == user_id).all()
 
 @router.put("/api/tracker/{id}")
-def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_db), user_id: str = Depends(get_request_user_id)):
     db_job = db.query(JobTracker).filter(JobTracker.id == id, JobTracker.user_id == user_id).first()
     if not db_job:
         raise HTTPException(status_code=404, detail="Entry not found")
@@ -341,8 +368,7 @@ def update_job_status(id: int, payload: StatusUpdate, db: Session = Depends(get_
     return db_job
 
 @router.delete("/api/tracker/{id}")
-def delete_tracked_job(id: int, db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+def delete_tracked_job(id: int, db: Session = Depends(get_db), user_id: str = Depends(get_request_user_id)):
     db_job = db.query(JobTracker).filter(JobTracker.id == id, JobTracker.user_id == user_id).first()
     if not db_job:
         raise HTTPException(status_code=404, detail="Entry not found")
@@ -351,8 +377,7 @@ def delete_tracked_job(id: int, db: Session = Depends(get_db), x_user_id: str = 
     return {"status": "success"}
 
 @router.get("/api/tracker/ai-nudge")
-def fetch_ai_nudge(db: Session = Depends(get_db), x_user_id: str = Header("anonymous_user")):
-    user_id = sanitize_user_id(x_user_id)
+def fetch_ai_nudge(db: Session = Depends(get_db), user_id: str = Depends(get_request_user_id)):
     try:
         count = db.query(JobTracker).filter(JobTracker.user_id == user_id, JobTracker.status == "Applied").count()
         nudge = llm.generate_text(

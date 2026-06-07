@@ -22,6 +22,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
+import { buildAuthHeaders } from "@/lib/authHeaders";
+import { loadUserCloudData, saveUserCloudData } from "@/lib/cloudStore";
 import { getTrackerActivityKey, getTrackerGoalsKey } from "@/lib/userSession";
 import { loadCareerProfile, normalizeSkillList } from "@/lib/profileData";
 
@@ -100,7 +102,7 @@ export default function TrackerDashboard() {
 
     try {
       const res = await fetch("/api/tracker", {
-        headers: { "x-user-id": userId },
+        headers: await buildAuthHeaders(user),
       });
       if (res.ok) {
         const data = await res.json();
@@ -108,7 +110,7 @@ export default function TrackerDashboard() {
       }
 
       const nudgeRes = await fetch("/api/tracker/ai-nudge", {
-        headers: { "x-user-id": userId },
+        headers: await buildAuthHeaders(user),
       });
       if (nudgeRes.ok) {
         const nudgeData = await nudgeRes.json();
@@ -118,7 +120,7 @@ export default function TrackerDashboard() {
       console.error("Failed to sync tracker data:", err);
       setNotice("Tracker data could not be refreshed right now. Please try again in a moment.");
     }
-  }, [userId]);
+  }, [userId, user]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -135,8 +137,6 @@ export default function TrackerDashboard() {
       } else {
         setWeeklyGoals([]);
       }
-      goalsHydratedRef.current = true;
-
       activityHydratedRef.current = false;
       const savedActivity = window.localStorage.getItem(getTrackerActivityKey(userId));
       if (savedActivity) {
@@ -148,7 +148,26 @@ export default function TrackerDashboard() {
       } else {
         setActivityEvents([]);
       }
-      activityHydratedRef.current = true;
+      void loadUserCloudData<MilestoneGoal[]>(userId, "trackerGoals")
+        .then((cloudGoals) => {
+          if (Array.isArray(cloudGoals) && cloudGoals.length > 0) {
+            setWeeklyGoals(cloudGoals);
+            window.localStorage.setItem(getTrackerGoalsKey(userId), JSON.stringify(cloudGoals));
+          }
+        })
+        .finally(() => {
+          goalsHydratedRef.current = true;
+        });
+      void loadUserCloudData<TrackerActivityEvent[]>(userId, "trackerActivity")
+        .then((cloudActivity) => {
+          if (Array.isArray(cloudActivity) && cloudActivity.length > 0) {
+            setActivityEvents(cloudActivity);
+            window.localStorage.setItem(getTrackerActivityKey(userId), JSON.stringify(cloudActivity));
+          }
+        })
+        .finally(() => {
+          activityHydratedRef.current = true;
+        });
       fetchPipelineData();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -183,12 +202,14 @@ export default function TrackerDashboard() {
   useEffect(() => {
     if (goalsHydratedRef.current && userId) {
       window.localStorage.setItem(getTrackerGoalsKey(userId), JSON.stringify(weeklyGoals));
+      void saveUserCloudData(userId, "trackerGoals", weeklyGoals);
     }
   }, [userId, weeklyGoals]);
 
   useEffect(() => {
     if (activityHydratedRef.current && userId) {
       window.localStorage.setItem(getTrackerActivityKey(userId), JSON.stringify(activityEvents));
+      void saveUserCloudData(userId, "trackerActivity", activityEvents);
     }
   }, [activityEvents, userId]);
 
@@ -234,7 +255,7 @@ export default function TrackerDashboard() {
     try {
       const res = await fetch("/api/tracker", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify({
           role,
           company,
@@ -284,7 +305,7 @@ export default function TrackerDashboard() {
     try {
       const res = await fetch(`/api/tracker/${id}`, {
         method: "DELETE",
-        headers: { "x-user-id": userId },
+        headers: await buildAuthHeaders(user),
       });
       if (!res.ok) {
         setJobs(originalJobs);
@@ -307,7 +328,7 @@ export default function TrackerDashboard() {
     try {
       const res = await fetch(`/api/tracker/${job.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify({
           application_deadline: selectedDeadline,
           deadline_date: selectedDeadline,
@@ -357,7 +378,7 @@ export default function TrackerDashboard() {
     try {
       const res = await fetch(`/api/tracker/${cardId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "x-user-id": userId },
+        headers: await buildAuthHeaders(user, { "Content-Type": "application/json" }),
         body: JSON.stringify({ status: targetStatus }),
       });
 
@@ -527,14 +548,14 @@ export default function TrackerDashboard() {
 
   const suggestedSearches = useMemo(() => {
     const [firstSkill, secondSkill, thirdSkill] = profileSkills;
-    const roleSearch = firstSkill || "Software engineer";
-    const internshipSearch = secondSkill || firstSkill || "Technology";
-    const remoteSearch = thirdSkill || secondSkill || firstSkill || "Developer";
+    const roleSearch = firstSkill || "Entry-level";
+    const internshipSearch = secondSkill || firstSkill || "Career";
+    const remoteSearch = thirdSkill || secondSkill || firstSkill || "Professional";
 
     return [
       `${roleSearch} jobs in Bangladesh`,
-      `${internshipSearch} internship in Dhaka`,
-      `Remote ${remoteSearch} jobs open to Bangladesh`,
+      `${internshipSearch} internships in Dhaka`,
+      `Remote ${remoteSearch} roles open to Bangladesh`,
     ];
   }, [profileSkills]);
 
@@ -638,7 +659,7 @@ export default function TrackerDashboard() {
     <div className={`min-h-screen bg-[#f8f9fa] text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 ${dmSans.className}`}>
       <div className="absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-blue-50 via-white to-transparent pointer-events-none" />
 
-      <div className="relative mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+      <div className="relative mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
         <header className="mb-5 rounded-2xl border border-blue-100 bg-white p-4 shadow-xl shadow-slate-200/60 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/50 sm:mb-6 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
