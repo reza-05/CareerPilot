@@ -65,6 +65,7 @@ CareerPilot/
     STACK_REPORT.md
     DEPENDENCIES.md
     SECURITY.md
+    DEPLOYMENT.md
     DEMO_SCRIPT_5_MIN.md
     SUBMISSION_CHECKLIST.md
 
@@ -178,6 +179,9 @@ The docs folder contains ready-to-upload files:
 - `docs/DEPENDENCIES.md`
 - `docs/architecture.md`
 - `docs/SECURITY.md`
+- `docs/DEPLOYMENT.md`
+- `docs/system-design.md`
+- `docs/evaluation-suite.md`
 - `docs/DEMO_SCRIPT_5_MIN.md`
 - `docs/SUBMISSION_CHECKLIST.md`
 

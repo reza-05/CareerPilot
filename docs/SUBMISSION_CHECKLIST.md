@@ -7,6 +7,9 @@
 - GitHub Repository: make the repository public and submit the public GitHub URL.
 - Demonstration Video: record a 5-minute demo using `docs/DEMO_SCRIPT_5_MIN.md`, upload to YouTube or Google Drive, and set it public/unlisted.
 - Deployment Link: optional. If unavailable, local + Docker instructions are documented.
+- Bonus System Design: include `docs/system-design.md`.
+- Bonus Evaluation Suite: include `docs/evaluation-suite.md`.
+- Bonus Deployment Guide: include `docs/DEPLOYMENT.md`.
 
 ## Before Uploading
 
