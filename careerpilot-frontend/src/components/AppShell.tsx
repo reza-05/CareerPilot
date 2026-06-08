@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { CheckCircle2, LogOut, Mail, RefreshCw } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
@@ -28,13 +29,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 function ShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, authError, logout, refreshUser, sendVerificationEmail } = useAuth();
   const isWelcome = pathname === "/" || pathname === "/welcome";
   const isAuth = pathname === "/auth";
   const isInfoPage = pathname === "/about" || pathname === "/contact";
   const isPublicRoute = isWelcome || isAuth || isInfoPage;
   const showAppFooter = !isWelcome && !isAuth;
   const [profile, setProfile] = useState(() => loadCareerProfile(user?.uid, user));
+  const needsEmailVerification = Boolean(
+    !isPublicRoute &&
+      user &&
+      !user.emailVerified &&
+      user.providerData.some((provider) => provider.providerId === "password"),
+  );
 
   useEffect(() => {
     if (!loading && !user && !isPublicRoute) {
@@ -78,6 +85,18 @@ function ShellContent({ children }: { children: React.ReactNode }) {
           <p className="text-sm font-bold text-slate-600">Redirecting to sign in...</p>
         </div>
       </main>
+    );
+  }
+
+  if (needsEmailVerification) {
+    return (
+      <EmailVerificationGate
+        email={user?.email || "your email"}
+        authError={authError}
+        onResend={sendVerificationEmail}
+        onRefresh={refreshUser}
+        onLogout={logout}
+      />
     );
   }
 
@@ -139,6 +158,109 @@ function ShellContent({ children }: { children: React.ReactNode }) {
       <div className="flex-1">{children}</div>
       {showAppFooter && <AppFooter />}
     </>
+  );
+}
+
+function EmailVerificationGate({
+  email,
+  authError,
+  onResend,
+  onRefresh,
+  onLogout,
+}: {
+  email: string;
+  authError: string | null;
+  onResend: () => Promise<boolean>;
+  onRefresh: () => Promise<boolean>;
+  onLogout: () => Promise<void>;
+}) {
+  const [busyAction, setBusyAction] = useState<"resend" | "refresh" | null>(null);
+  const [notice, setNotice] = useState("A verification link has been sent to your email.");
+
+  const handleResend = async () => {
+    setBusyAction("resend");
+    const success = await onResend();
+    setBusyAction(null);
+
+    if (success) {
+      setNotice("Verification email sent again. Please check your inbox.");
+    }
+  };
+
+  const handleRefresh = async () => {
+    setBusyAction("refresh");
+    const verified = await onRefresh();
+    setBusyAction(null);
+
+    if (!verified) {
+      setNotice("Email is not verified yet. Please open the verification link first.");
+    }
+  };
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-5 py-10 dark:bg-slate-950">
+      <section className="w-full max-w-xl rounded-3xl border border-blue-100 bg-white p-6 text-center shadow-2xl shadow-blue-950/10 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/60 sm:p-8">
+        <Link href="/welcome" className="mx-auto mb-8 inline-flex items-center justify-center transition hover:opacity-90">
+          <Image src="/brand/logo.png" alt="CareerPilot" width={260} height={96} className="h-12 w-auto" />
+        </Link>
+
+        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-[#EFF6FF] text-[#1E3A8A] shadow-sm dark:border-blue-400/20 dark:bg-slate-800 dark:text-blue-100">
+          <Mail className="h-8 w-8" />
+        </div>
+
+        <p className="text-xs font-black uppercase tracking-[0.22em] text-[#1E3A8A] dark:text-blue-100">
+          Email Verification Required
+        </p>
+        <h1 className="mt-3 text-3xl font-black leading-tight text-slate-950 dark:text-white">
+          Verify your email to continue
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+          We sent a verification link to <span className="font-black text-[#1E3A8A] dark:text-blue-100">{email}</span>.
+          Please verify it before opening your CareerPilot workspace.
+        </p>
+
+        <div className="mt-6 rounded-2xl border border-blue-100 bg-[#EFF6FF] px-4 py-3 text-sm font-bold text-slate-600 dark:border-blue-400/20 dark:bg-slate-800 dark:text-slate-300">
+          <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#1E3A8A] dark:text-blue-100" />
+          {notice}
+        </div>
+
+        {authError && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+            {authError}
+          </div>
+        )}
+
+        <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={Boolean(busyAction)}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-5 text-sm font-black text-white shadow-lg shadow-blue-950/15 transition hover:-translate-y-0.5 hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
+            I verified
+          </button>
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={Boolean(busyAction)}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-5 text-sm font-black text-[#1E3A8A] shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-400/20 dark:bg-slate-900 dark:text-blue-100 dark:hover:bg-slate-800"
+          >
+            <Mail className="h-4 w-4" />
+            Resend email
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          className="mt-5 inline-flex items-center justify-center gap-2 text-sm font-black text-slate-500 transition hover:text-[#1E3A8A] dark:text-slate-400 dark:hover:text-blue-100"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign out
+        </button>
+      </section>
+    </main>
   );
 }
 

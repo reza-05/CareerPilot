@@ -3,6 +3,8 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -17,10 +19,13 @@ interface AuthContextValue {
   loading: boolean;
   authReady: boolean;
   authError: string | null;
+  authRevision: number;
   signInWithGoogle: () => Promise<boolean>;
   signInWithEmail: (email: string, password: string) => Promise<boolean>;
   signUpWithEmail: (email: string, password: string) => Promise<boolean>;
   sendPasswordReset: (email: string) => Promise<boolean>;
+  sendVerificationEmail: () => Promise<boolean>;
+  refreshUser: () => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
@@ -68,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(() => Boolean(firebaseAuth));
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authRevision, setAuthRevision] = useState(0);
 
   useEffect(() => {
     if (!firebaseAuth) {
@@ -86,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       authReady: isFirebaseConfigured,
       authError,
+      authRevision,
       signInWithGoogle: async () => {
         setAuthError(null);
 
@@ -135,7 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-          await createUserWithEmailAndPassword(firebaseAuth, email, password);
+          const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+          await sendEmailVerification(credential.user);
           return true;
         } catch (error) {
           const errorCode = getFirebaseErrorCode(error);
@@ -166,13 +174,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return false;
         }
       },
+      sendVerificationEmail: async () => {
+        setAuthError(null);
+
+        if (!firebaseAuth?.currentUser) {
+          setAuthError("Please log in first, then request a verification email.");
+          return false;
+        }
+
+        try {
+          await sendEmailVerification(firebaseAuth.currentUser);
+          return true;
+        } catch (error) {
+          const errorCode = getFirebaseErrorCode(error);
+
+          if (errorCode === "auth/too-many-requests") {
+            setAuthError("Too many requests. Please wait a moment before sending another email.");
+            return false;
+          }
+
+          setAuthError("We could not send a verification email right now. Please try again.");
+          return false;
+        }
+      },
+      refreshUser: async () => {
+        setAuthError(null);
+
+        if (!firebaseAuth?.currentUser) {
+          return false;
+        }
+
+        try {
+          await reload(firebaseAuth.currentUser);
+          setUser(firebaseAuth.currentUser);
+          setAuthRevision((current) => current + 1);
+          return firebaseAuth.currentUser.emailVerified;
+        } catch {
+          setAuthError("We could not refresh your verification status. Please try again.");
+          return false;
+        }
+      },
       logout: async () => {
         if (firebaseAuth) {
           await signOut(firebaseAuth);
         }
       },
     }),
-    [authError, loading, user],
+    [authError, authRevision, loading, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
