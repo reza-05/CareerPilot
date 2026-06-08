@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { CheckCircle2, LogOut, Mail, RefreshCw } from "lucide-react";
+import { CheckCircle2, LogOut, Mail, RefreshCw, XCircle } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "@/components/AuthProvider";
@@ -176,6 +176,7 @@ function EmailVerificationGate({
 }) {
   const [busyAction, setBusyAction] = useState<"resend" | "refresh" | null>(null);
   const [notice, setNotice] = useState("A verification link has been sent to your email.");
+  const [noticeTone, setNoticeTone] = useState<"success" | "error">("success");
 
   const handleResend = async () => {
     setBusyAction("resend");
@@ -184,6 +185,7 @@ function EmailVerificationGate({
 
     if (success) {
       setNotice("Verification email sent again. Please check your inbox.");
+      setNoticeTone("success");
     }
   };
 
@@ -194,33 +196,43 @@ function EmailVerificationGate({
 
     if (!verified) {
       setNotice("Email is not verified yet. Please open the verification link first.");
+      setNoticeTone("error");
     }
   };
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] px-5 py-10 dark:bg-slate-950">
-      <section className="w-full max-w-xl rounded-3xl border border-blue-100 bg-white p-6 text-center shadow-2xl shadow-blue-950/10 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/60 sm:p-8">
-        <Link href="/welcome" className="mx-auto mb-8 inline-flex items-center justify-center transition hover:opacity-90">
-          <Image src="/brand/logo.png" alt="CareerPilot" width={260} height={96} className="h-12 w-auto" />
+      <section className="w-full max-w-lg rounded-3xl border border-blue-100 bg-white p-6 text-center shadow-2xl shadow-blue-950/10 dark:border-blue-400/20 dark:bg-slate-900 dark:shadow-slate-950/60 sm:p-8">
+        <Link href="/welcome" className="mx-auto mb-7 inline-flex items-center justify-center transition hover:opacity-90">
+          <Image src="/brand/logo.png" alt="CareerPilot" width={230} height={86} className="h-10 w-auto" />
         </Link>
 
-        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-[#EFF6FF] text-[#1E3A8A] shadow-sm dark:border-blue-400/20 dark:bg-slate-800 dark:text-blue-100">
-          <Mail className="h-8 w-8" />
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-100 bg-[#EFF6FF] text-[#1E3A8A] shadow-sm dark:border-blue-400/20 dark:bg-slate-800 dark:text-blue-100">
+          <Mail className="h-7 w-7" />
         </div>
 
-        <p className="text-xs font-black uppercase tracking-[0.22em] text-[#1E3A8A] dark:text-blue-100">
-          Email Verification Required
-        </p>
-        <h1 className="mt-3 text-3xl font-black leading-tight text-slate-950 dark:text-white">
-          Verify your email to continue
+        <h1 className="text-2xl font-black leading-tight text-slate-950 dark:text-white sm:text-3xl">
+          Verify your email
         </h1>
-        <p className="mx-auto mt-3 max-w-md text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
-          We sent a verification link to <span className="font-black text-[#1E3A8A] dark:text-blue-100">{email}</span>.
-          Please verify it before opening your CareerPilot workspace.
+        <p className="mx-auto mt-3 max-w-sm text-sm font-semibold leading-6 text-slate-600 dark:text-slate-300">
+          Open the verification link sent to <span className="font-black text-[#1E3A8A] dark:text-blue-100">{email}</span>.
+        </p>
+        <p className="mx-auto mt-2 max-w-sm text-xs font-bold leading-5 text-slate-400 dark:text-slate-400">
+          No email yet? Check spam or promotions, then resend if needed.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-blue-100 bg-[#EFF6FF] px-4 py-3 text-sm font-bold text-slate-600 dark:border-blue-400/20 dark:bg-slate-800 dark:text-slate-300">
-          <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#1E3A8A] dark:text-blue-100" />
+        <div
+          className={`mt-6 rounded-2xl border px-4 py-3 text-sm font-bold dark:bg-slate-800 ${
+            noticeTone === "error"
+              ? "border-red-200 bg-red-50 text-red-700 dark:border-red-400/30 dark:text-red-200"
+              : "border-blue-100 bg-[#EFF6FF] text-slate-600 dark:border-blue-400/20 dark:text-slate-300"
+          }`}
+        >
+          {noticeTone === "error" ? (
+            <XCircle className="mr-2 inline h-4 w-4 text-red-600 dark:text-red-200" />
+          ) : (
+            <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#1E3A8A] dark:text-blue-100" />
+          )}
           {notice}
         </div>
 
