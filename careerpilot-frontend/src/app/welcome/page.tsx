@@ -329,48 +329,55 @@ function FloatingChip({
 
 function LiveDashboardSection() {
   return (
-    <section className="bg-white px-5 py-16 sm:px-8 lg:px-14">
-      <div className="mx-auto grid max-w-[1400px] gap-8 lg:grid-cols-[0.75fr_1.25fr] lg:items-center">
-        <div>
+    <section className="bg-white px-5 py-14 dark:bg-slate-950 sm:px-8 sm:py-16 lg:px-14">
+      <div className="mx-auto max-w-[1180px]">
+        <div className="max-w-4xl">
           <p className="text-sm font-black uppercase tracking-[0.22em] text-[#1E3A8A]">Live dashboard mockup</p>
-          <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">A clearer view of matching, tracking, and progress.</h2>
-          <p className="mt-5 text-base font-semibold leading-8 text-slate-600">
+          <h2 className="mt-3 text-3xl font-black leading-tight text-slate-950 dark:text-white sm:text-4xl lg:text-5xl">
+            A clearer view of matching, tracking, and progress.
+          </h2>
+          <p className="mt-4 max-w-3xl text-base font-semibold leading-8 text-slate-600 dark:text-slate-300">
             The first screen after CV setup is built to show useful signals: top matches, weekly activity, profile skills, and current application status.
           </p>
         </div>
 
-        <div className="rounded-3xl border border-blue-100 bg-[#F8FBFF] p-5 shadow-2xl shadow-blue-950/10">
+        <div className="mt-8 rounded-3xl border border-blue-100 bg-[#F8FBFF] p-4 shadow-2xl shadow-blue-950/10 dark:border-blue-400/20 dark:bg-slate-900 sm:p-6 lg:p-8">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#1E3A8A]">Matched Jobs</p>
-              <h3 className="mt-1 text-2xl font-black text-slate-950">Top opportunities</h3>
+              <h3 className="mt-1 text-2xl font-black text-slate-950 dark:text-white">Top opportunities</h3>
             </div>
-            <span className="rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-black text-[#1E3A8A]">Profile-aware</span>
+            <span className="rounded-full border border-blue-200 bg-white px-4 py-2 text-sm font-black text-[#1E3A8A] dark:border-blue-400/20 dark:bg-slate-950 dark:text-blue-100">
+              Profile-aware
+            </span>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-3">
-              {dashboardJobs.map((job) => (
-                <div key={job.title} className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="font-black text-slate-950">{job.title}</h4>
-                      <p className="text-sm font-bold text-slate-500">{job.company}</p>
-                    </div>
-                    <span className="rounded-xl bg-[#EFF6FF] px-3 py-2 text-sm font-black text-[#1E3A8A]">{job.score}%</span>
+          <div className="space-y-3">
+            {dashboardJobs.map((job) => (
+              <div
+                key={job.title}
+                className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-950/10 dark:border-blue-400/15 dark:bg-slate-950"
+              >
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-black text-slate-950 dark:text-white">{job.title}</h4>
+                    <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{job.company}</p>
                   </div>
-                  <div className="h-2 rounded-full bg-blue-100">
-                    <div className="h-full rounded-full bg-[#1E3A8A]" style={{ width: `${job.score}%` }} />
-                  </div>
+                  <span className="rounded-xl bg-[#EFF6FF] px-3 py-2 text-sm font-black text-[#1E3A8A] dark:bg-slate-800 dark:text-blue-100">
+                    {job.score}%
+                  </span>
                 </div>
-              ))}
-            </div>
+                <div className="h-2 rounded-full bg-blue-100 dark:bg-slate-800">
+                  <div className="h-full rounded-full bg-[#1E3A8A]" style={{ width: `${job.score}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-              <MiniStat icon={<BriefcaseBusiness className="h-5 w-5" />} label="Applications" value="6+" />
-              <MiniStat icon={<BarChart3 className="h-5 w-5" />} label="Profile skills" value="18+" />
-              <MiniStat icon={<LineChart className="h-5 w-5" />} label="Roadmap" value="72%" />
-            </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <MiniStat icon={<BriefcaseBusiness className="h-5 w-5" />} label="Applications" value="8+" />
+            <MiniStat icon={<BarChart3 className="h-5 w-5" />} label="Profile Skills" value="24+" />
+            <MiniStat icon={<LineChart className="h-5 w-5" />} label="Roadmap" value="76%" />
           </div>
         </div>
       </div>
@@ -380,10 +387,10 @@ function LiveDashboardSection() {
 
 function MiniStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EFF6FF] text-[#1E3A8A]">{icon}</div>
-      <p className="text-3xl font-black text-[#1E3A8A]">{value}</p>
-      <p className="mt-1 text-sm font-black uppercase tracking-[0.14em] text-slate-500">{label}</p>
+    <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-blue-950/10 dark:border-blue-400/15 dark:bg-slate-950">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#EFF6FF] text-[#1E3A8A] dark:bg-slate-800 dark:text-blue-100">{icon}</div>
+      <p className="text-3xl font-black text-[#1E3A8A] dark:text-blue-100">{value}</p>
+      <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">{label}</p>
     </div>
   );
 }
