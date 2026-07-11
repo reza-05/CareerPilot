@@ -144,3 +144,10 @@ npm run build
 - [ ] 5-minute demo video recorded
 - [ ] Evaluation suite included
 - [ ] Optional deployment URL added if available
+
+**Team CLI** — Codesprint '26'
+
+| Name | GitHub | Email |
+|------|--------|-------|
+| Md. Shifat Reza | @reza-05 | shifatreza5@gmail.com |
+| Muntakim Fuad Mahi | @sugar6169 | muntakimfm@gmail.com |
